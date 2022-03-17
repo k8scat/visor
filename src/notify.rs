@@ -1,6 +1,7 @@
 use serde_json::json;
 use anyhow::{Result, anyhow};
 use shiplift::rep::Container;
+use crate::parse_status_time;
 
 // 群机器人配置说明 https://developer.work.weixin.qq.com/document/path/91770
 
@@ -39,14 +40,10 @@ pub fn message_tpl(container: &Container, owner_email: &str, serv_url: &str) -> 
     let mut container_id = container.id.clone();
     container_id.truncate(12);
 
-    let mut running_time = container.status.clone();
-    running_time = running_time.replace("Up ", "");
-    running_time = running_time.replace(" (unhealthy)", "");
-    running_time = running_time.replace(" (healthy)", "");
-    running_time = running_time.replace(" (health: starting)", "");
+    let items = parse_status_time(container.status.clone());
+    let running_time = format!("{} {}", items[0], items[1]);
 
     let start_container_url = format!("{}/start_container/{}", serv_url, container.id);
-
     format!(
         r##"由于私有部署环境资源使用达到上限，以下容器已被强制停止:
  > 容器ID: <font color="comment">{}</font>

@@ -43,11 +43,16 @@ async fn main() -> std::io::Result<()> {
         let mem_usage = get_mem_usage().unwrap();
         info!("CPU: {}%, MEM: {}%", cpu_usage, mem_usage);
         if cpu_usage > cfg.cpu_limit || mem_usage > cfg.mem_limit {
-            let containers = list_containers(&docker).await.unwrap();
+            let mut containers = list_containers(&docker).await.unwrap();
             if containers.is_empty() {
                 info!("No containers found");
                 continue
             }
+            containers.sort_by(|a, b| {
+                let a_time = status_into_time(a.status.clone()).unwrap_or_default();
+                let b_time = status_into_time(b.status.clone()).unwrap_or_default();
+                b_time.cmp(&a_time)
+            });
             let container = &containers[0];
             let container_id = &container.id;
             let owner = get_instance_owner(&container).unwrap_or_else(|e| {
