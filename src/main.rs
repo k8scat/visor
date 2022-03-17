@@ -1,18 +1,18 @@
-mod psutil;
-mod container;
 mod config;
-mod notify;
+mod container;
 mod instance;
+mod notify;
+mod psutil;
 
 use clap::{App, Arg};
 use log::{info, warn};
 use shiplift::Docker;
 
 use crate::config::Config;
-use crate::notify::{message_tpl, Notifier};
-use crate::psutil::*;
 use crate::container::*;
 use crate::instance::*;
+use crate::notify::{message_tpl, Notifier};
+use crate::psutil::*;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -22,15 +22,16 @@ async fn main() -> std::io::Result<()> {
     let app = App::new("visor")
         .version("0.1.0")
         .author("K8sCat <rustpanic@gmail.com>")
-        .arg(Arg::with_name("config")
-            .short("c")
-            .long("config")
-            .value_name("FILE")
-            .default_value("config.yml")
-            .help("Set config file")
-            .takes_value(true));
+        .arg(
+            Arg::with_name("config")
+                .short("c")
+                .long("config")
+                .value_name("FILE")
+                .default_value("config.yml")
+                .help("Set config file")
+                .takes_value(true),
+        );
     let matches = app.get_matches();
-
 
     let cfg_path = matches.value_of("config").unwrap();
     let cfg = Config::new(cfg_path).unwrap();
@@ -46,7 +47,7 @@ async fn main() -> std::io::Result<()> {
             let mut containers = list_containers(&docker).await.unwrap();
             if containers.is_empty() {
                 info!("No containers found");
-                continue
+                continue;
             }
             containers.sort_by(|a, b| {
                 let a_time = status_into_time(a.status.clone()).unwrap_or_default();
@@ -55,12 +56,20 @@ async fn main() -> std::io::Result<()> {
             });
             let container = &containers[0];
             let container_id = &container.id;
-            let owner = get_instance_owner(&container).unwrap_or_else(|e| {
+            let inst = get_instance(&container).unwrap_or_else(|e| {
                 warn!("Get instance owner failed: {}", e);
-                String::from("unknown")
+                Instance {
+                    owner: String::from(""),
+                    deploy_dir: String::from(""),
+                }
             });
             stop_container(&docker, container_id).await.unwrap();
-            notifier.notify(message_tpl(container, &owner, &cfg.serv_url).as_str()).await.unwrap();
+            notifier
+                .notify(
+                    message_tpl(container, &inst.owner, &cfg.serv_url, &inst.deploy_dir).as_str(),
+                )
+                .await
+                .unwrap();
         }
     }
 }

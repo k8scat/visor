@@ -2,7 +2,7 @@ use std::fs;
 use anyhow::Result;
 use serde::{Deserialize};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Config {
     pub notify_webhook: String,
     pub cpu_limit: f32,
