@@ -1,0 +1,3 @@
+notify_webhook: ""
+cpu_limit: 70
+mem_limit: 70
