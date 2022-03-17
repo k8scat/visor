@@ -16,6 +16,7 @@ use crate::instance::*;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
+    std::env::set_var("RUST_LOG", "info");
     env_logger::init();
 
     let app = App::new("visor")
@@ -42,13 +43,10 @@ async fn main() -> std::io::Result<()> {
         let mem_usage = get_mem_usage().unwrap();
         info!("CPU: {}%, MEM: {}%", cpu_usage, mem_usage);
         if cpu_usage > cfg.cpu_limit || mem_usage > cfg.mem_limit {
-            let mut containers = list_containers(&docker).await.unwrap();
+            let containers = list_containers(&docker).await.unwrap();
             if containers.is_empty() {
                 info!("No containers found");
                 continue
-            }
-            if containers.len().gt(&1usize) {
-                containers.sort_by(|a, b| b.created.cmp(&a.created));
             }
             let container = &containers[0];
             let container_id = &container.id;
@@ -57,7 +55,7 @@ async fn main() -> std::io::Result<()> {
                 String::from("unknown")
             });
             stop_container(&docker, container_id).await.unwrap();
-            notifier.notify(message_tpl(container, &owner).as_str()).await.unwrap();
+            notifier.notify(message_tpl(container, &owner, &cfg.serv_url).as_str()).await.unwrap();
         }
     }
 }

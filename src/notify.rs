@@ -35,7 +35,7 @@ impl Notifier {
     }
 }
 
-pub fn message_tpl(container: &Container, owner_email: &str) -> String {
+pub fn message_tpl(container: &Container, owner_email: &str, serv_url: &str) -> String {
     let mut container_id = container.id.clone();
     container_id.truncate(12);
 
@@ -43,6 +43,9 @@ pub fn message_tpl(container: &Container, owner_email: &str) -> String {
     running_time = running_time.replace("Up ", "");
     running_time = running_time.replace(" (unhealthy)", "");
     running_time = running_time.replace(" (healthy)", "");
+    running_time = running_time.replace(" (health: starting)", "");
+
+    let start_container_url = format!("{}/start_container/{}", serv_url, container.id);
 
     format!(
         r##"由于私有部署环境资源使用达到上限，以下容器已被强制停止:
@@ -52,7 +55,8 @@ pub fn message_tpl(container: &Container, owner_email: &str) -> String {
 
 
  如需继续使用该实例，可自行重启容器:
- > 重启命令: <font color="comment">docker start {}</font>"##,
-        container_id, running_time, owner_email, container_id
+ > 重启命令: <font color="comment">docker start {}</font>
+ > 重启链接: [Start Container]({})"##,
+        container_id, running_time, owner_email, container_id, start_container_url
     )
 }

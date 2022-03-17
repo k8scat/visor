@@ -7,6 +7,7 @@ pub struct Config {
     pub notify_webhook: String,
     pub cpu_limit: f32,
     pub mem_limit: f32,
+    pub serv_url: String,
 }
 
 impl Config {
