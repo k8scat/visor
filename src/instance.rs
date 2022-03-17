@@ -27,7 +27,7 @@ fn exec(cmd: &str) -> Result<String> {
         .arg("-c")
         .arg(cmd)
         .output()?;
-    if !output.status.success() {
+    if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     } else {
         Err(anyhow!("Failed to execute cmd [{}]: {} {}", cmd, output.status, String::from_utf8_lossy(&output.stderr)))
