@@ -1,6 +1,6 @@
-notify_webhook: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=90af791c-bfdd-4074-8d11-e0b67e2c3897"
+notify_webhook: ""
 cpu_limit: 90
 mem_limit: 90
-serv_url: "http://mars-dev.myones.net:17456"
+serv_url: ""
 disk_clean_interval: 20
 container_clean_interval: 7

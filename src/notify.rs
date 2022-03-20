@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use serde_json::json;
 use shiplift::rep::Container;
 
-use crate::{get_cpu_usage, get_disk_usage, get_mem_usage, parse_status_time};
+use crate::{get_cpu_usage, get_disk_usage, get_mem_usage, Instance, parse_status_time};
 
 // 群机器人配置说明 https://developer.work.weixin.qq.com/document/path/91770
 
@@ -42,9 +42,8 @@ impl Notifier {
 
 pub fn message_tpl(
     container: &Container,
-    owner_email: &str,
+    inst: &Instance,
     serv_url: &str,
-    deploy_dir: &str,
 ) -> String {
     let mut container_id = container.id.clone();
     container_id.truncate(12);
@@ -72,7 +71,7 @@ pub fn message_tpl(
 如需继续使用该实例，可自行重启容器:
 > 重启命令: <font color="comment">docker start {}</font>
 > 重启链接: [Start Container]({})"##,
-        container_id, running_time, deploy_dir, owner_email,
+        container_id, running_time, inst.deploy_dir, inst.owner,
         cpu_usage as i32, mem_usage as i32, disk_usage as i32,
         container_id, start_container_url
     )
