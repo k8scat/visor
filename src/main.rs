@@ -1,18 +1,21 @@
-mod config;
-mod container;
-mod instance;
-mod notify;
-mod psutil;
+use std::fs;
+use std::time::Duration;
 
 use clap::{App, Arg};
 use log::{info, warn};
 use shiplift::Docker;
 
 use crate::config::Config;
-use crate::container::*;
+use crate::docker::*;
 use crate::instance::*;
 use crate::notify::{message_tpl, Notifier};
 use crate::psutil::*;
+
+mod config;
+mod docker;
+mod instance;
+mod notify;
+mod psutil;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -20,7 +23,7 @@ async fn main() -> std::io::Result<()> {
     env_logger::init();
 
     let app = App::new("visor")
-        .version("0.1.0")
+        .version("0.1.1")
         .author("K8sCat <rustpanic@gmail.com>")
         .arg(
             Arg::with_name("config")
@@ -42,34 +45,76 @@ async fn main() -> std::io::Result<()> {
     loop {
         let cpu_usage = get_cpu_usage().unwrap();
         let mem_usage = get_mem_usage().unwrap();
-        info!("CPU: {}%, MEM: {}%", cpu_usage, mem_usage);
+        let disk_usage = get_disk_usage().unwrap();
+        info!("CPU: {}%, MEM: {}%, DISK: {}%s", cpu_usage, mem_usage, disk_usage);
+
+        // 清理实例
         if cpu_usage > cfg.cpu_limit || mem_usage > cfg.mem_limit {
-            let mut containers = list_containers(&docker).await.unwrap();
+            let mut containers = list_running_containers(&docker).await.unwrap();
             if containers.is_empty() {
-                info!("No containers found");
-                continue;
+                info!("No running containers found");
+            } else {
+                containers.sort_by(|a, b| {
+                    let a_time = status_into_time(a.status.clone()).unwrap_or_default();
+                    let b_time = status_into_time(b.status.clone()).unwrap_or_default();
+                    b_time.cmp(&a_time)
+                });
+
+                let container = &containers[0];
+                let container_id = &container.id;
+                let inst = get_instance(&container).unwrap_or_else(|e| {
+                    warn!("Get instance owner failed: {}", e);
+                    Instance::new()
+                });
+                stop_container(&docker, container_id).await.unwrap();
+
+                let msg = message_tpl(container, &inst.owner, &cfg.serv_url, &inst.deploy_dir);
+                notifier.notify(&msg).await.unwrap();
             }
-            containers.sort_by(|a, b| {
-                let a_time = status_into_time(a.status.clone()).unwrap_or_default();
-                let b_time = status_into_time(b.status.clone()).unwrap_or_default();
-                b_time.cmp(&a_time)
-            });
-            let container = &containers[0];
-            let container_id = &container.id;
-            let inst = get_instance(&container).unwrap_or_else(|e| {
-                warn!("Get instance owner failed: {}", e);
-                Instance {
-                    owner: String::from(""),
-                    deploy_dir: String::from(""),
+        }
+
+        // 清理磁盘空间
+        let pkg_files = filter_files(crate::instance::PKG_DIR, cfg.disk_clean_interval).unwrap();
+        if pkg_files.is_empty() {
+            info!("No pkg files found");
+        } else {
+            for pkg in pkg_files.iter() {
+                info!("Remove pkg: {}", pkg);
+                fs::remove_dir_all(pkg).unwrap();
+            }
+        }
+
+        let release_files = filter_files(crate::instance::RELEASE_DIR, cfg.disk_clean_interval).unwrap();
+        if release_files.is_empty() {
+            info!("No release files found");
+        } else {
+            for release in release_files.iter() {
+                info!("Remove release: {}", release);
+                fs::remove_file(release).unwrap();
+            }
+        }
+
+        let containers = list_exited_containers(&docker).await.unwrap();
+        if containers.is_empty() {
+            info!("No exited containers found");
+        } else {
+            for container in containers.iter() {
+                let container_id = &container.id;
+                let t = status_into_time(container.status.clone()).unwrap();
+                let interval = 60 * 60 * 24 * cfg.container_clean_interval;
+                if t.gt(&Duration::from_secs(interval)) {
+                    remove_container(&docker, container_id).await.unwrap();
+                } else {
+                    info!("Container {} exited: {}s", container_id, t.as_secs());
                 }
-            });
-            stop_container(&docker, container_id).await.unwrap();
-            notifier
-                .notify(
-                    message_tpl(container, &inst.owner, &cfg.serv_url, &inst.deploy_dir).as_str(),
-                )
-                .await
-                .unwrap();
+            }
+        }
+
+        if let Err(e) = image_prune(&docker).await {
+            warn!("Image prune failed: {}", e);
+        }
+        if let Err(e) = volume_prune(&docker).await {
+            warn!("Volume prune failed: {}", e);
         }
     }
 }

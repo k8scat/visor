@@ -1,6 +1,11 @@
+use std::fs;
+use std::ops::Sub;
+use std::process::Command;
+use std::time::Duration;
+use std::time::SystemTime;
+
 use anyhow::{anyhow, Result};
 use shiplift::rep::Container;
-use std::process::Command;
 
 const OWNER_FILE: &str = ".owner_email";
 
@@ -8,6 +13,15 @@ const OWNER_FILE: &str = ".owner_email";
 pub struct Instance {
     pub owner: String,
     pub deploy_dir: String,
+}
+
+impl Instance {
+    pub fn new() -> Self {
+        Self {
+            owner: String::new(),
+            deploy_dir: String::new(),
+        }
+    }
 }
 
 pub fn get_instance(container: &Container) -> Result<Instance> {
@@ -43,4 +57,19 @@ fn exec(cmd: &str) -> Result<String> {
             String::from_utf8_lossy(&output.stderr)
         ))
     }
+}
+
+pub const PKG_DIR: &str = "/data/ones/pkg";
+pub const RELEASE_DIR: &str = "/data/release";
+
+pub fn filter_files(dir: &str, interval: u64) -> Result<Vec<String>> {
+    let tl = SystemTime::now().sub(Duration::from_secs(interval * 86400));
+    Ok(fs::read_dir(dir)?
+        .map(|entry| entry.unwrap())
+        .filter(|entry| {
+            let m = entry.metadata().unwrap();
+            m.modified().unwrap().lt(&tl)
+        })
+        .map(|entry| entry.path().to_str().unwrap().to_string())
+        .collect())
 }

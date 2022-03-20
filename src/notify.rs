@@ -1,7 +1,8 @@
-use crate::parse_status_time;
 use anyhow::{anyhow, Result};
 use serde_json::json;
 use shiplift::rep::Container;
+
+use crate::{get_cpu_usage, get_disk_usage, get_mem_usage, parse_status_time};
 
 // 群机器人配置说明 https://developer.work.weixin.qq.com/document/path/91770
 
@@ -52,6 +53,10 @@ pub fn message_tpl(
     let running_time = format!("{} {}", items[0], items[1]);
 
     let start_container_url = format!("{}/start_container/{}", serv_url, container.id);
+
+    let cpu_usage = get_cpu_usage().unwrap();
+    let mem_usage = get_mem_usage().unwrap();
+    let disk_usage = get_disk_usage().unwrap();
     format!(
         r##"由于私有部署环境资源使用达到上限，以下容器已被强制停止:
 > 容器ID: <font color="comment">{}</font>
@@ -59,10 +64,16 @@ pub fn message_tpl(
 > 部署目录: <font color="comment">{}</font>
 > 创建者: <font color="comment">{}</font>
 
+当前资源使用情况:
+> CPU: <font color="comment">{}%</font>
+> 内存: <font color="comment">{}%</font>
+> 磁盘: <font color="comment">{}%</font>
 
 如需继续使用该实例，可自行重启容器:
 > 重启命令: <font color="comment">docker start {}</font>
 > 重启链接: [Start Container]({})"##,
-        container_id, running_time, owner_email, deploy_dir, container_id, start_container_url
+        container_id, running_time, deploy_dir, owner_email,
+        cpu_usage as i32, mem_usage as i32, disk_usage as i32,
+        container_id, start_container_url
     )
 }

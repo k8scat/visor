@@ -1,6 +1,6 @@
 [package]
 name = "visor"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["K8sCat <rustpanic@gmail.com>"]
 homepage = "https://github.com/k8scat/visor"
@@ -21,6 +21,7 @@ clap = "2.34.0"
 log = "0.4"
 env_logger = "0.8.4"
 actix-web = "4"
+regex = "1"
 
 [[bin]]
 name = "visor-serv"
