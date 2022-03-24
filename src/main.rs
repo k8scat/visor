@@ -23,7 +23,7 @@ async fn main() {
     env_logger::init();
 
     let app = App::new("visor")
-        .version("0.1.3")
+        .version("0.1.4")
         .author("K8sCat <rustpanic@gmail.com>")
         .arg(
             Arg::with_name("config")
@@ -99,7 +99,7 @@ async fn main() {
     } else {
         for container in containers.iter() {
             let container_id = &container.id;
-            let t = status_into_time(container.status.clone()).unwrap();
+            let t = status_into_time(container.status.clone()).unwrap_or_default();
             let interval = 60 * 60 * 24 * cfg.container_clean_interval;
             if t.gt(&Duration::from_secs(interval)) {
                 remove_container(&docker, container_id).await.unwrap();
