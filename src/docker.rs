@@ -52,7 +52,7 @@ pub async fn volume_prune(docker: &Docker) -> Result<()> {
 }
 
 pub fn parse_status_time(mut s: String) -> Vec<String> {
-    let re = Regex::new(r"(Exited |Up )\([0-9]+\) ").unwrap();
+    let re = Regex::new(r"(Exited |Up )(\([0-9]+\) )?").unwrap();
     s = re.replace_all(&s, "").to_string();
     let items = s.split(" ").collect::<Vec<&str>>();
     vec![items[0].to_string(), items[1].to_string()]
@@ -71,5 +71,21 @@ pub fn status_into_time(s: String) -> Result<Duration> {
         "months" => Ok(Duration::from_secs(num * 60 * 60 * 24 * 7 * 30)),
         "years" => Ok(Duration::from_secs(num * 60 * 60 * 24 * 7 * 30 * 365)),
         _ => Err(anyhow::anyhow!("Unknown unit: {}", unit)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_parse_status_time() {
+        let s = "Up 2 weeks";
+        let items = super::parse_status_time(s.to_string());
+        assert_eq!(items[0], "2");
+        assert_eq!(items[1], "weeks");
+
+        let s = "Exited (137) 9 hours ago";
+        let items = super::parse_status_time(s.to_string());
+        assert_eq!(items[0], "9");
+        assert_eq!(items[1], "hours");
     }
 }
