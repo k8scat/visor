@@ -5,6 +5,7 @@ use std::time::Duration;
 use std::time::SystemTime;
 
 use anyhow::{anyhow, Result};
+use log::info;
 use shiplift::rep::Container;
 
 const OWNER_FILE: &str = ".owner_email";
@@ -64,12 +65,51 @@ pub const RELEASE_DIR: &str = "/data/release";
 
 pub fn filter_files(dir: &str, interval: u64) -> Result<Vec<String>> {
     let tl = SystemTime::now().sub(Duration::from_secs(interval * 86400));
-    Ok(fs::read_dir(dir)?
+    let files = fs::read_dir(dir)?
         .map(|entry| entry.unwrap())
         .filter(|entry| {
             let m = entry.metadata().unwrap();
             m.modified().unwrap().lt(&tl)
         })
         .map(|entry| entry.path().to_str().unwrap().to_string())
-        .collect())
+        .collect();
+    Ok(files)
+}
+
+pub fn delete_release(clean_interval: u64) -> Result<()> {
+    let files = filter_files(RELEASE_DIR, clean_interval)?;
+    if files.is_empty() {
+        info!("No release files found");
+    } else {
+        for f in files.iter() {
+            info!("Remove release: {}", f);
+            fs::remove_file(f)?;
+        }
+    }
+    Ok(())
+}
+
+pub fn delete_pkg(clean_interval: u64) -> Result<()> {
+    let files = filter_files(PKG_DIR, clean_interval)?;
+    if files.is_empty() {
+        info!("No pkg files found");
+    } else {
+        for f in files.iter() {
+            fs::read_dir(f)?
+                .map(|entry| entry.unwrap())
+                .for_each(|entry| {
+                    let path = entry.path();
+                    let p = path.to_str().unwrap();
+                    if path.is_file() && str::ends_with(path.to_str().unwrap_or_default(), ".tar.gz") {
+                        info!("Remove pkg: {}", p);
+                        fs::remove_file(p).unwrap_or_else(|e| {
+                            info!("Failed to remove pkg: {}, reason: {}", p, e);
+                        });
+                    } else {
+                        info!("Skip: {}", p);
+                    }
+                });
+        }
+    }
+    Ok(())
 }

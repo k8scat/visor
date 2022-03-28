@@ -1,4 +1,3 @@
-use std::fs;
 use std::time::Duration;
 
 use clap::{App, Arg};
@@ -73,25 +72,8 @@ async fn main() {
     }
 
     // 清理磁盘空间
-    let pkg_files = filter_files(crate::instance::PKG_DIR, cfg.disk_clean_interval).unwrap();
-    if pkg_files.is_empty() {
-        info!("No pkg files found");
-    } else {
-        for pkg in pkg_files.iter() {
-            info!("Remove pkg: {}", pkg);
-            fs::remove_dir_all(pkg).unwrap();
-        }
-    }
-
-    let release_files = filter_files(crate::instance::RELEASE_DIR, cfg.disk_clean_interval).unwrap();
-    if release_files.is_empty() {
-        info!("No release files found");
-    } else {
-        for release in release_files.iter() {
-            info!("Remove release: {}", release);
-            fs::remove_file(release).unwrap();
-        }
-    }
+    delete_pkg(cfg.pkg_clean_interval).unwrap();
+    delete_release(cfg.release_clean_interval).unwrap();
 
     let containers = list_exited_containers(&docker).await.unwrap();
     if containers.is_empty() {

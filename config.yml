@@ -2,5 +2,6 @@ notify_webhook: ""
 cpu_limit: 90
 mem_limit: 90
 serv_url: ""
-disk_clean_interval: 20
 container_clean_interval: 7
+release_clean_interval: 7
+pkg_clean_interval: 7

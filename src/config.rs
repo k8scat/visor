@@ -8,7 +8,8 @@ pub struct Config {
     pub notify_webhook: String,
     pub cpu_limit: f32,
     pub mem_limit: f32,
-    pub disk_clean_interval: u64,
+    pub release_clean_interval: u64,
+    pub pkg_clean_interval: u64,
     pub container_clean_interval: u64,
     pub serv_url: String,
 }
