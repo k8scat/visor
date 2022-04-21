@@ -73,8 +73,11 @@ async fn clean_containers(docker: &Docker, cfg: &Config) -> Result<()> {
             continue;
         }
 
-        info!("Remove container: {}", &container.id);
-        remove_container(docker, &container.id).await?;
+        if let Err(e) = remove_container(docker, &container.id).await {
+            warn!("Remove container {} failed: {}", container.id, e);
+        } else {
+            info!("Removed container {}", &container.id);
+        }
     }
     Ok(())
 }
@@ -85,7 +88,7 @@ async fn main() {
     env_logger::init();
 
     let app = Command::new("visor")
-        .version("0.1.8")
+        .version("0.1.9")
         .author("K8sCat <rustpanic@gmail.com>")
         .arg(
             Arg::new("config")
@@ -111,12 +114,12 @@ async fn main() {
 
     // 清理部署目录
     if let Err(e) = clean_pkg(cfg.pkg_clean_interval) {
-        warn!("Clean pkg failed: {:?}", e);
+        warn!("Clean pkg failed: {}", e);
     };
 
     // 清理部署包
     if let Err(e) = clean_release(cfg.release_clean_interval) {
-        warn!("Clean release failed: {:?}", e);
+        warn!("Clean release failed: {}", e);
     };
 
     // 清理停止的容器
@@ -126,11 +129,11 @@ async fn main() {
 
     // 清理镜像
     if let Err(e) = clean_images(&docker).await {
-        warn!("Clean images failed: {:?}", e);
+        warn!("Clean images failed: {}", e);
     }
 
     // 清理数据卷
     if let Err(e) = clean_volumes(&docker).await {
-        warn!("Clean volumes failed: {:?}", e);
+        warn!("Clean volumes failed: {}", e);
     }
 }

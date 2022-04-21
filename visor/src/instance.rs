@@ -6,7 +6,7 @@ use std::time::Duration;
 use std::time::SystemTime;
 
 use anyhow::{anyhow, Result};
-use log::info;
+use log::{info, warn};
 use shiplift::rep::Container;
 
 const OWNER_FILE: &str = ".owner_email";
@@ -61,8 +61,8 @@ fn exec(cmd: &str) -> Result<String> {
     }
 }
 
-pub const PKG_DIR: &str = "/data/ones/pkg";
-pub const RELEASE_DIR: &str = "/data/release";
+const PKG_DIR: &str = "/data/ones/pkg";
+const RELEASE_DIR: &str = "/data/release";
 
 pub fn filter_files(dir: &str, interval: u64) -> Result<Vec<String>> {
     let tl = SystemTime::now().sub(Duration::from_secs(interval * 86400));
@@ -83,8 +83,11 @@ pub fn clean_release(clean_interval: u64) -> Result<()> {
         info!("No release files found");
     } else {
         for f in files.iter() {
-            info!("Remove release: {}", f);
-            fs::remove_file(f)?;
+            if let Err(e) = fs::remove_file(f) {
+                warn!("Remove release {} failed: {}", f, e);
+            } else {
+                info!("Removed release: {}", f);
+            }
         }
     }
     Ok(())
@@ -104,12 +107,13 @@ pub fn clean_pkg(clean_interval: u64) -> Result<()> {
                     if path.is_file()
                         && str::ends_with(path.to_str().unwrap_or_default(), ".tar.gz")
                     {
-                        info!("Remove pkg: {}", p);
-                        fs::remove_file(p).unwrap_or_else(|e| {
-                            info!("Failed to remove pkg: {}, reason: {}", p, e);
-                        });
+                        if let Err(e) = fs::remove_file(p) {
+                            warn!("Remove pkg {} failed: {}", p, e);
+                        } else {
+                            info!("Removed pkg: {}", p);
+                        }
                     } else {
-                        info!("Skip pkg: {}", p);
+                        info!("Skipped: {}", p);
                     }
                 });
         }

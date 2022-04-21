@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use anyhow::Result;
-use log::warn;
+use log::{info, warn};
 use regex::Regex;
 use shiplift::rep::Container;
 use shiplift::{ContainerFilter, Docker};
@@ -39,7 +39,9 @@ pub async fn clean_images(docker: &Docker) -> Result<()> {
     let images = docker.images().list(&Default::default()).await?;
     for image in images.iter() {
         if let Err(e) = docker.images().get(&image.id).delete().await {
-            warn!("Failed to delete image {}: {}", image.id, e);
+            warn!("Delete image {} failed: {}", image.id, e);
+        } else {
+            info!("Deleted image {}", image.id);
         }
     }
     Ok(())
@@ -49,7 +51,9 @@ pub async fn clean_volumes(docker: &Docker) -> Result<()> {
     let volumes = docker.volumes().list().await?;
     for volume in volumes.iter() {
         if let Err(e) = docker.volumes().get(&volume.name).delete().await {
-            warn!("Failed to delete volume {}: {}", volume.name, e);
+            warn!("Delete volume {} failed: {}", volume.name, e);
+        } else {
+            info!("Deleted volume {}", volume.name);
         }
     }
     Ok(())
