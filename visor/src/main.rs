@@ -50,6 +50,7 @@ async fn stop_containers<T: Notifier>(docker: &Docker, cfg: &Config, notifier: &
             Instance::new()
         });
         stop_container(docker, container_id).await?;
+        info!("Stop container: {}", container_id);
 
         let msg = message_tpl(container, &inst, &cfg.serv_url);
         notifier.notify(&msg).await?;
@@ -82,7 +83,7 @@ async fn main() {
     env_logger::init();
 
     let app = Command::new("visor")
-        .version("0.1.6")
+        .version("0.1.7")
         .author("K8sCat <rustpanic@gmail.com>")
         .arg(
             Arg::new("config")

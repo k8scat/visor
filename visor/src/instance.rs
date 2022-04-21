@@ -109,7 +109,7 @@ pub fn clean_pkg(clean_interval: u64) -> Result<()> {
                             info!("Failed to remove pkg: {}, reason: {}", p, e);
                         });
                     } else {
-                        info!("Skip: {}", p);
+                        info!("Skip pkg: {}", p);
                     }
                 });
         }
