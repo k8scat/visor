@@ -1,0 +1,25 @@
+[package]
+name = "visor"
+version = "0.1.5"
+edition = "2021"
+authors = ["K8sCat <k8scat@gmail.com>"]
+homepage = "https://github.com/k8scat/visor"
+license = "MIT"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tokio = { version = "1.15.0", features = ["full"] }
+psutil = "3.2.1"
+shiplift = "0.7"
+anyhow = "1.0"
+reqwest = { version = "0.11", features = ["json"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.8"
+serde_json = "1.0"
+clap = "3.1.9"
+log = "0.4"
+env_logger = "0.8.4"
+actix-web = "4"
+regex = "1"
+async-trait = "0.1.53"

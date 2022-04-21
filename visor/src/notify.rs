@@ -1,31 +1,30 @@
 use anyhow::{anyhow, Result};
+use async_trait::async_trait;
 use serde_json::json;
 use shiplift::rep::Container;
 
-use crate::{get_cpu_usage, get_disk_usage, get_mem_usage, Instance, parse_status_time};
+use crate::{get_cpu_usage, get_disk_usage, get_mem_usage, parse_status_time, Instance};
 
 // 群机器人配置说明 https://developer.work.weixin.qq.com/document/path/91770
 
+#[async_trait]
+pub trait Notifier {
+    async fn notify(&self, msg: &str) -> Result<()>;
+}
+
 #[derive(Debug, Clone)]
-pub struct Notifier {
+pub struct WechatNotifier {
     webhook: String,
 }
 
-impl Notifier {
-    pub fn new(webhook: String) -> Result<Self> {
-        if webhook.is_empty() {
-            Err(anyhow!("Webhook is empty"))
-        } else {
-            Ok(Self { webhook })
-        }
-    }
-
-    pub async fn notify(&self, message: &str) -> Result<()> {
+#[async_trait]
+impl Notifier for WechatNotifier {
+    async fn notify(&self, msg: &str) -> Result<()> {
         let client = reqwest::Client::new();
         let body = json!({
             "msgtype": "markdown",
             "markdown": json!({
-                "content": message
+                "content": msg,
             })
         });
         let res = client.post(&self.webhook).json(&body).send().await?;
@@ -40,11 +39,17 @@ impl Notifier {
     }
 }
 
-pub fn message_tpl(
-    container: &Container,
-    inst: &Instance,
-    serv_url: &str,
-) -> String {
+impl WechatNotifier {
+    pub fn new(webhook: String) -> Result<Self> {
+        if webhook.is_empty() {
+            Err(anyhow!("Webhook is empty"))
+        } else {
+            Ok(Self { webhook })
+        }
+    }
+}
+
+pub fn message_tpl(container: &Container, inst: &Instance, serv_url: &str) -> String {
     let mut container_id = container.id.clone();
     container_id.truncate(12);
 
@@ -71,8 +76,14 @@ pub fn message_tpl(
 如需继续使用该实例，可自行重启容器:
 > 重启命令: <font color="comment">docker start {}</font>
 > 重启链接: [Start Container]({})"##,
-        container_id, running_time, inst.deploy_dir, inst.owner,
-        cpu_usage as i32, mem_usage as i32, disk_usage as i32,
-        container_id, start_container_url
+        container_id,
+        running_time,
+        inst.deploy_dir,
+        inst.owner,
+        cpu_usage as i32,
+        mem_usage as i32,
+        disk_usage as i32,
+        container_id,
+        start_container_url
     )
 }

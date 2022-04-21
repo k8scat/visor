@@ -5,6 +5,10 @@ VERSION = 0.1.5
 build:
 	cargo build
 
+.PHONY: build-visor
+build-visor:
+	cargo build -p visor
+
 .PHONY: release
 release:
 	cargo build --release

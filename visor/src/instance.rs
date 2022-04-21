@@ -1,3 +1,4 @@
+/// 实例资源
 use std::fs;
 use std::ops::Sub;
 use std::process::Command;
@@ -76,7 +77,7 @@ pub fn filter_files(dir: &str, interval: u64) -> Result<Vec<String>> {
     Ok(files)
 }
 
-pub fn delete_release(clean_interval: u64) -> Result<()> {
+pub fn clean_release(clean_interval: u64) -> Result<()> {
     let files = filter_files(RELEASE_DIR, clean_interval)?;
     if files.is_empty() {
         info!("No release files found");
@@ -89,7 +90,7 @@ pub fn delete_release(clean_interval: u64) -> Result<()> {
     Ok(())
 }
 
-pub fn delete_pkg(clean_interval: u64) -> Result<()> {
+pub fn clean_pkg(clean_interval: u64) -> Result<()> {
     let files = filter_files(PKG_DIR, clean_interval)?;
     if files.is_empty() {
         info!("No pkg files found");
@@ -100,7 +101,9 @@ pub fn delete_pkg(clean_interval: u64) -> Result<()> {
                 .for_each(|entry| {
                     let path = entry.path();
                     let p = path.to_str().unwrap();
-                    if path.is_file() && str::ends_with(path.to_str().unwrap_or_default(), ".tar.gz") {
+                    if path.is_file()
+                        && str::ends_with(path.to_str().unwrap_or_default(), ".tar.gz")
+                    {
                         info!("Remove pkg: {}", p);
                         fs::remove_file(p).unwrap_or_else(|e| {
                             info!("Failed to remove pkg: {}, reason: {}", p, e);
