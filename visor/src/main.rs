@@ -72,6 +72,8 @@ async fn clean_containers(docker: &Docker, cfg: &Config) -> Result<()> {
             info!("Container {} exited: {}s", &container.id, t.as_secs());
             continue;
         }
+
+        info!("Remove container: {}", &container.id);
         remove_container(docker, &container.id).await?;
     }
     Ok(())
@@ -83,7 +85,7 @@ async fn main() {
     env_logger::init();
 
     let app = Command::new("visor")
-        .version("0.1.7")
+        .version("0.1.8")
         .author("K8sCat <rustpanic@gmail.com>")
         .arg(
             Arg::new("config")
