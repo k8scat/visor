@@ -47,7 +47,7 @@ async fn stop_containers<T: Notifier>(docker: &Docker, cfg: &Config, notifier: &
         let container_id = &container.id;
         let inst = get_instance(&container).unwrap_or_else(|e| {
             warn!("Get instance owner failed: {}", e);
-            Instance::new()
+            Instance::default()
         });
         stop_container(docker, container_id).await?;
         info!("Stop container: {}", container_id);

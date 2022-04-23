@@ -11,19 +11,10 @@ use shiplift::rep::Container;
 
 const OWNER_FILE: &str = ".owner_email";
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Default)]
 pub struct Instance {
     pub owner: String,
     pub deploy_dir: String,
-}
-
-impl Instance {
-    pub fn new() -> Self {
-        Self {
-            owner: String::new(),
-            deploy_dir: String::new(),
-        }
-    }
 }
 
 pub fn get_instance(container: &Container) -> Result<Instance> {
