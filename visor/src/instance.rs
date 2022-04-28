@@ -90,23 +90,33 @@ pub fn clean_pkg(clean_interval: u64) -> Result<()> {
         info!("No pkg files found");
     } else {
         for f in files.iter() {
-            fs::read_dir(f)?
-                .map(|entry| entry.unwrap())
-                .for_each(|entry| {
-                    let path = entry.path();
-                    let p = path.to_str().unwrap();
-                    if path.is_file()
-                        && str::ends_with(path.to_str().unwrap_or_default(), ".tar.gz")
-                    {
-                        if let Err(e) = fs::remove_file(p) {
-                            warn!("Remove pkg {} failed: {}", p, e);
-                        } else {
-                            info!("Removed pkg: {}", p);
-                        }
-                    } else {
-                        info!("Skipped: {}", p);
-                    }
-                });
+            if !f.starts_with(PKG_DIR) {
+                info!("Invalid pkg: {}", f);
+                continue;
+            }
+            if let Err(e) = fs::remove_dir_all(f) {
+                warn!("Remove pkg {} failed: {}", f, e);
+            } else {
+                info!("Removed pkg: {}", f);
+            }
+
+            // fs::read_dir(f)?
+            //     .map(|entry| entry.unwrap())
+            //     .for_each(|entry| {
+            //         let path = entry.path();
+            //         let p = path.to_str().unwrap();
+            //         if path.is_file()
+            //             && str::ends_with(path.to_str().unwrap_or_default(), ".tar.gz")
+            //         {
+            //             if let Err(e) = fs::remove_file(p) {
+            //                 warn!("Remove pkg {} failed: {}", p, e);
+            //             } else {
+            //                 info!("Removed pkg: {}", p);
+            //             }
+            //         } else {
+            //             info!("Skipped: {}", p);
+            //         }
+            //     });
         }
     }
     Ok(())
