@@ -88,7 +88,7 @@ async fn main() {
     env_logger::init();
 
     let app = Command::new("visor")
-        .version("0.1.9")
+        .version("0.1.10")
         .author("K8sCat <rustpanic@gmail.com>")
         .arg(
             Arg::new("config")
