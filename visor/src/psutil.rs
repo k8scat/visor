@@ -2,12 +2,12 @@ use std::thread;
 use std::time::Duration;
 
 use anyhow::Result;
-use psutil::{cpu, disk, memory};
 use psutil::Percent;
+use psutil::{cpu, disk, memory};
 
 pub fn get_cpu_usage() -> Result<Percent> {
     let block_time = Duration::from_millis(1000);
-    let mut collector = cpu::CpuPercentCollector::new().unwrap();
+    let mut collector = cpu::CpuPercentCollector::new()?;
     thread::sleep(block_time);
     Ok(collector.cpu_percent()?)
 }

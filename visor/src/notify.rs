@@ -40,11 +40,13 @@ impl Notifier for WechatNotifier {
 }
 
 impl WechatNotifier {
-    pub fn new(webhook: String) -> Result<Self> {
+    pub fn new(webhook: &str) -> Result<Self> {
         if webhook.is_empty() {
             Err(anyhow!("Webhook is empty"))
         } else {
-            Ok(Self { webhook })
+            Ok(Self {
+                webhook: webhook.to_string(),
+            })
         }
     }
 }

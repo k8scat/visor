@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 /// 实例资源
 use std::fs;
 use std::ops::Sub;
@@ -8,6 +9,9 @@ use std::time::SystemTime;
 use anyhow::{anyhow, Result};
 use log::{info, warn};
 use shiplift::rep::Container;
+use shiplift::Docker;
+
+use crate::docker::list_running_containers;
 
 const OWNER_FILE: &str = ".owner_email";
 
@@ -84,7 +88,15 @@ pub fn clean_release(clean_interval: u64) -> Result<()> {
     Ok(())
 }
 
-pub fn clean_pkg(clean_interval: u64) -> Result<()> {
+pub async fn clean_pkg(clean_interval: u64, docker: &Docker) -> Result<()> {
+    let containers = list_running_containers(docker).await?;
+    let mut m = HashMap::<String, bool>::with_capacity(containers.len());
+    containers.iter().for_each(|container| {
+        let instance = get_instance(container).unwrap_or_default();
+        m.insert(instance.deploy_dir, true);
+    });
+    drop(containers);
+
     let files = filter_files(PKG_DIR, clean_interval)?;
     if files.is_empty() {
         info!("No pkg files found");
@@ -94,29 +106,17 @@ pub fn clean_pkg(clean_interval: u64) -> Result<()> {
                 info!("Invalid pkg: {}", f);
                 continue;
             }
+
+            if let None = m.get(f) {
+                info!("Ignore pkg: {}", f);
+                continue;
+            }
+
             if let Err(e) = fs::remove_dir_all(f) {
                 warn!("Remove pkg {} failed: {}", f, e);
             } else {
                 info!("Removed pkg: {}", f);
             }
-
-            // fs::read_dir(f)?
-            //     .map(|entry| entry.unwrap())
-            //     .for_each(|entry| {
-            //         let path = entry.path();
-            //         let p = path.to_str().unwrap();
-            //         if path.is_file()
-            //             && str::ends_with(path.to_str().unwrap_or_default(), ".tar.gz")
-            //         {
-            //             if let Err(e) = fs::remove_file(p) {
-            //                 warn!("Remove pkg {} failed: {}", p, e);
-            //             } else {
-            //                 info!("Removed pkg: {}", p);
-            //             }
-            //         } else {
-            //             info!("Skipped: {}", p);
-            //         }
-            //     });
         }
     }
     Ok(())

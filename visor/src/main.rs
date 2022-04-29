@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use anyhow::Ok;
 use anyhow::Result;
-use clap::{Arg, Command};
+use clap::Parser;
 use log::{info, warn};
 use shiplift::Docker;
 
@@ -18,7 +18,10 @@ use crate::instance::*;
 use crate::notify::{message_tpl, Notifier, WechatNotifier};
 use crate::psutil::*;
 
-async fn stop_containers<T: Notifier>(docker: &Docker, cfg: &Config, notifier: &T) -> Result<()> {
+async fn stop_containers<T>(docker: &Docker, cfg: &Config, notifier: &T) -> Result<()>
+where
+    T: Notifier,
+{
     loop {
         let cpu_usage = get_cpu_usage()?;
         let mem_usage = get_mem_usage()?;
@@ -45,14 +48,14 @@ async fn stop_containers<T: Notifier>(docker: &Docker, cfg: &Config, notifier: &
 
         let container = &containers[0];
         let container_id = &container.id;
-        let inst = get_instance(&container).unwrap_or_else(|e| {
+        let instance = get_instance(&container).unwrap_or_else(|e| {
             warn!("Get instance owner failed: {}", e);
             Instance::default()
         });
         stop_container(docker, container_id).await?;
         info!("Stop container: {}", container_id);
 
-        let msg = message_tpl(container, &inst, &cfg.serv_url);
+        let msg = message_tpl(container, &instance, &cfg.serv_url);
         notifier.notify(&msg).await?;
     }
     Ok(())
@@ -82,38 +85,29 @@ async fn clean_containers(docker: &Docker, cfg: &Config) -> Result<()> {
     Ok(())
 }
 
-#[tokio::main]
-async fn main() {
-    std::env::set_var("RUST_LOG", "info");
-    env_logger::init();
+/// Monitor and clean resource usage.
+#[derive(Parser, Debug)]
+#[clap(author = "K8sCat <rustpanic@gmail.com>", version = "0.1.11", about, long_about = None)]
+struct Args {
+    #[clap(short, long, value_name = "FILE", default_value_t = String::from("config.json"))]
+    config: String,
 
-    let app = Command::new("visor")
-        .version("0.1.10")
-        .author("K8sCat <rustpanic@gmail.com>")
-        .arg(
-            Arg::new("config")
-                .short('c')
-                .long("config")
-                .value_name("FILE")
-                .default_value("config.yml")
-                .help("Set config file")
-                .takes_value(true),
-        );
-    let matches = app.get_matches();
+    /// Run as daemon
+    #[clap(short)]
+    daemon: bool,
+}
 
-    let cfg_path = matches.value_of("config").unwrap();
-    let cfg = Config::new(cfg_path).unwrap();
-
-    let notifier = WechatNotifier::new(cfg.notify_webhook.clone()).unwrap();
-    let docker = Docker::new();
-
+async fn monitor<T>(cfg: &Config, docker: &Docker, notifier: &T) -> Result<()>
+where
+    T: Notifier,
+{
     // 限制 CPU 和内存使用率，并停止过载的容器
-    if let Err(e) = stop_containers(&docker, &cfg, &notifier).await {
+    if let Err(e) = stop_containers(docker, cfg, notifier).await {
         warn!("Stop containers failed: {}", e);
     }
 
     // 清理部署目录
-    if let Err(e) = clean_pkg(cfg.pkg_clean_interval) {
+    if let Err(e) = clean_pkg(cfg.pkg_clean_interval, docker).await {
         warn!("Clean pkg failed: {}", e);
     };
 
@@ -135,5 +129,27 @@ async fn main() {
     // 清理数据卷
     if let Err(e) = clean_volumes(&docker).await {
         warn!("Clean volumes failed: {}", e);
+    }
+    Ok(())
+}
+
+#[tokio::main]
+async fn main() {
+    std::env::set_var("RUST_LOG", "info");
+    env_logger::init();
+
+    let args = Args::parse();
+
+    let cfg = Config::new(&args.config).unwrap();
+
+    let notifier = WechatNotifier::new(&cfg.notify_webhook).unwrap();
+    let docker = Docker::new();
+
+    if args.daemon {
+        monitor(&cfg, &docker, &notifier).await.unwrap();
+    } else {
+        loop {
+            monitor(&cfg, &docker, &notifier).await.unwrap();
+        }
     }
 }

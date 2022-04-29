@@ -8,10 +8,6 @@
   - /data/release 下超过指定天数的部署包
   - /data/ones/pkg 下超过指定天数的部署目录
 
-## Todo
-
-- [ ] 删除部署目录前，通过配置文件中的端口检查容器是否正在运行，如果容器是停止的，通过卷查找容器
-
 ## Author
 
 K8sCat <rustpanic@gmail.com>
