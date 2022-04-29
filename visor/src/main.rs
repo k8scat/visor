@@ -87,7 +87,7 @@ async fn clean_containers(docker: &Docker, cfg: &Config) -> Result<()> {
 
 /// Monitor and clean resource usage.
 #[derive(Parser, Debug)]
-#[clap(author = "K8sCat <rustpanic@gmail.com>", version = "0.1.11", about, long_about = None)]
+#[clap(author = "K8sCat <rustpanic@gmail.com>", version = "0.1.12", about, long_about = None)]
 struct Args {
     #[clap(short, long, value_name = "FILE", default_value_t = String::from("config.json"))]
     config: String,
@@ -146,10 +146,10 @@ async fn main() {
     let docker = Docker::new();
 
     if args.daemon {
-        monitor(&cfg, &docker, &notifier).await.unwrap();
-    } else {
         loop {
             monitor(&cfg, &docker, &notifier).await.unwrap();
         }
     }
+
+    monitor(&cfg, &docker, &notifier).await.unwrap();
 }
