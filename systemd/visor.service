@@ -1,0 +1,14 @@
+[Unit]
+Description=Visor Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Restart=always
+RestartSec=5s
+ExecStart=/usr/bin/visor -c /etc/visor/config.yml -d
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=multi-user.target

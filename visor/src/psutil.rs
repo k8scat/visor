@@ -6,8 +6,8 @@ use psutil::Percent;
 use psutil::{cpu, disk, memory};
 
 pub fn get_cpu_usage() -> Result<Percent> {
-    let block_time = Duration::from_millis(1000);
     let mut collector = cpu::CpuPercentCollector::new()?;
+    let block_time = Duration::from_secs(10);
     thread::sleep(block_time);
     Ok(collector.cpu_percent()?)
 }
