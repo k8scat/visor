@@ -18,7 +18,7 @@ use crate::psutil::*;
 
 /// Monitor resource usage and clean unused resource, keep the server usable.
 #[derive(Parser, Debug)]
-#[clap(author = "K8sCat <rustpanic@gmail.com>", version = "0.1.14", about, long_about = None)]
+#[clap(author = "K8sCat <rustpanic@gmail.com>", version = "0.1.15", about, long_about = None)]
 struct Args {
     #[clap(short, long, value_name = "FILE", default_value_t = String::from("config.json"))]
     config: String,

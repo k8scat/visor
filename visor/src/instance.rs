@@ -106,7 +106,7 @@ pub async fn clean_pkg(docker: &Docker, lifecycle: u64) -> Result<()> {
                 continue;
             }
 
-            if let None = m.get(f) {
+            if let Some(_) = m.get(f) {
                 info!("Ignore pkg: {}", f);
                 continue;
             }
