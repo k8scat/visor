@@ -8,10 +8,16 @@ pub struct Config {
     pub notify_webhook: String,
     pub cpu_limit: f32,
     pub mem_limit: f32,
-    pub release_clean_interval: u64,
-    pub pkg_clean_interval: u64,
-    pub container_clean_interval: u64,
     pub serv_url: String,
+    pub lifecycle: Lifecycle,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Lifecycle {
+    pub container_running: u64,
+    pub pkg: u64,
+    pub release: u64,
+    pub image_created: u64,
 }
 
 impl Config {

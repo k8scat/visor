@@ -1,10 +1,17 @@
-use std::time::Duration;
+use chrono::prelude::{DateTime, Utc};
+use std::ops::Sub;
+use std::time::{Duration, SystemTime};
 
 use anyhow::Result;
 use log::{info, warn};
 use regex::Regex;
 use shiplift::rep::Container;
 use shiplift::{ContainerFilter, Docker};
+
+use crate::config::Config;
+use crate::instance::{get_instance, Instance};
+use crate::notify::{message_tpl, Notifier};
+use crate::psutil::{get_cpu_usage, get_disk_usage, get_mem_usage};
 
 // https://docs.docker.com/engine/reference/commandline/ps/#filtering
 pub async fn list_exited_containers(docker: &Docker) -> Result<Vec<Container>> {
@@ -35,9 +42,17 @@ pub async fn remove_container(docker: &Docker, id: &str) -> Result<()> {
         .await?)
 }
 
-pub async fn clean_images(docker: &Docker) -> Result<()> {
+pub async fn clean_images(docker: &Docker, lifecycle: u64) -> Result<()> {
     let images = docker.images().list(&Default::default()).await?;
+    let t: DateTime<Utc> = SystemTime::now()
+        .sub(Duration::from_secs(lifecycle * 86400))
+        .into();
     for image in images.iter() {
+        if image.created.gt(&t) {
+            info!("Ignore image: {}", image.id);
+            continue;
+        }
+
         if let Err(e) = docker.images().get(&image.id).delete().await {
             warn!("Delete image {} failed: {}", image.id, e);
         } else {
@@ -96,4 +111,71 @@ mod tests {
         assert_eq!(items[0], "9");
         assert_eq!(items[1], "hours");
     }
+}
+
+pub async fn stop_containers<T>(docker: &Docker, cfg: &Config, notifier: &T) -> Result<()>
+where
+    T: Notifier,
+{
+    loop {
+        let cpu_usage = get_cpu_usage()?;
+        let mem_usage = get_mem_usage()?;
+        let disk_usage = get_disk_usage()?;
+        info!(
+            "CPU: {}%, MEM: {}%, DISK: {}%s",
+            cpu_usage, mem_usage, disk_usage
+        );
+        if cpu_usage < cfg.cpu_limit && mem_usage < cfg.mem_limit {
+            break;
+        }
+
+        let mut containers = list_running_containers(docker).await?;
+        if containers.is_empty() {
+            info!("No running containers found");
+            return Ok(());
+        }
+
+        containers.sort_by(|a, b| {
+            let a_time = status_into_running_time(a.status.clone()).unwrap_or_default();
+            let b_time = status_into_running_time(b.status.clone()).unwrap_or_default();
+            b_time.cmp(&a_time)
+        });
+
+        let container = &containers[0];
+        let container_id = &container.id;
+        let instance = get_instance(&container).unwrap_or_else(|e| {
+            warn!("Get instance owner failed: {}", e);
+            Instance::default()
+        });
+        stop_container(docker, container_id).await?;
+        info!("Stop container: {}", container_id);
+
+        let msg = message_tpl(container, &instance, &cfg.serv_url);
+        notifier.notify(&msg).await?;
+    }
+    Ok(())
+}
+
+pub async fn clean_exited_containers(docker: &Docker, lifecycle: u64) -> Result<()> {
+    let containers = list_exited_containers(docker).await?;
+    if containers.is_empty() {
+        info!("No exited containers found");
+        return Ok(());
+    }
+
+    let d = Duration::from_secs(86400 * lifecycle);
+    for container in containers.iter() {
+        let t = status_into_running_time(container.status.clone()).unwrap_or_default();
+        if t.lt(&d) {
+            info!("Ignore container {}", &container.id);
+            continue;
+        }
+
+        if let Err(e) = remove_container(docker, &container.id).await {
+            warn!("Remove container {} failed: {}", container.id, e);
+        } else {
+            info!("Removed container {}", &container.id);
+        }
+    }
+    Ok(())
 }

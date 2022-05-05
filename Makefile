@@ -1,5 +1,5 @@
 NAME = visor
-VERSION = 0.1.13
+VERSION = 0.1.14
 
 .PHONY: build
 build:
@@ -18,3 +18,4 @@ release:
 
 sync:
 	rsync -v --progress target/release/visor ones-priv:/usr/bin/visor
+	rsync -v --progress target/release/visor-serv ones-priv:/usr/bin/visor-serv

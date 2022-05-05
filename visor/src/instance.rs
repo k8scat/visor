@@ -3,8 +3,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::ops::Sub;
 use std::process::Command;
-use std::time::Duration;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 use anyhow::{anyhow, Result};
 use log::{info, warn};
@@ -59,21 +58,21 @@ fn exec(cmd: &str) -> Result<String> {
 const PKG_DIR: &str = "/data/ones/pkg";
 const RELEASE_DIR: &str = "/data/release";
 
-pub fn filter_files(dir: &str, interval: u64) -> Result<Vec<String>> {
-    let tl = SystemTime::now().sub(Duration::from_secs(interval * 86400));
+pub fn filter_files(dir: &str, lifecycle: u64) -> Result<Vec<String>> {
+    let t = SystemTime::now().sub(Duration::from_secs(lifecycle * 86400));
     let files = fs::read_dir(dir)?
         .map(|entry| entry.unwrap())
         .filter(|entry| {
             let m = entry.metadata().unwrap();
-            m.modified().unwrap().lt(&tl)
+            m.modified().unwrap().lt(&t)
         })
         .map(|entry| entry.path().to_str().unwrap().to_string())
         .collect();
     Ok(files)
 }
 
-pub fn clean_release(clean_interval: u64) -> Result<()> {
-    let files = filter_files(RELEASE_DIR, clean_interval)?;
+pub fn clean_release(lifecycle: u64) -> Result<()> {
+    let files = filter_files(RELEASE_DIR, lifecycle)?;
     if files.is_empty() {
         info!("No release files found");
     } else {
@@ -88,7 +87,7 @@ pub fn clean_release(clean_interval: u64) -> Result<()> {
     Ok(())
 }
 
-pub async fn clean_pkg(clean_interval: u64, docker: &Docker) -> Result<()> {
+pub async fn clean_pkg(docker: &Docker, lifecycle: u64) -> Result<()> {
     let containers = list_running_containers(docker).await?;
     let mut m = HashMap::<String, bool>::with_capacity(containers.len());
     containers.iter().for_each(|container| {
@@ -97,7 +96,7 @@ pub async fn clean_pkg(clean_interval: u64, docker: &Docker) -> Result<()> {
     });
     drop(containers);
 
-    let files = filter_files(PKG_DIR, clean_interval)?;
+    let files = filter_files(PKG_DIR, lifecycle)?;
     if files.is_empty() {
         info!("No pkg files found");
     } else {

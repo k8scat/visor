@@ -58,12 +58,10 @@ pub fn message_tpl(container: &Container, inst: &Instance, serv_url: &str) -> St
     let items = parse_status_time(container.status.clone());
     let running_time = format!("{} {}", items[0], items[1]);
 
-    let start_container_url = format!("{}/start_container/{}", serv_url, container.id);
-
     let cpu_usage = get_cpu_usage().unwrap();
     let mem_usage = get_mem_usage().unwrap();
     let disk_usage = get_disk_usage().unwrap();
-    format!(
+    let s = format!(
         r##"由于私有部署环境资源使用达到上限，以下容器已被强制停止:
 > 容器ID: <font color="comment">{}</font>
 > 运行时长: <font color="comment">{}</font>
@@ -76,8 +74,7 @@ pub fn message_tpl(container: &Container, inst: &Instance, serv_url: &str) -> St
 > 磁盘: <font color="comment">{}%</font>
 
 如需继续使用该实例，可自行重启容器:
-> 重启命令: <font color="comment">docker start {}</font>
-> 重启链接: [Start Container]({})"##,
+> 重启命令: <font color="comment">docker start {}</font>"##,
         container_id,
         running_time,
         inst.deploy_dir,
@@ -85,7 +82,18 @@ pub fn message_tpl(container: &Container, inst: &Instance, serv_url: &str) -> St
         cpu_usage as i32,
         mem_usage as i32,
         disk_usage as i32,
-        container_id,
-        start_container_url
-    )
+        container_id
+    );
+
+    if serv_url.is_empty() {
+        s
+    } else {
+        let start_container_url = format!("{}/start_container/{}", serv_url, container.id);
+
+        format!(
+            r##"{}
+> 重启链接: [Start Container]({})"##,
+            s, start_container_url
+        )
+    }
 }

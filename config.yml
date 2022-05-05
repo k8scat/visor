@@ -2,6 +2,10 @@ notify_webhook: ""
 cpu_limit: 90
 mem_limit: 90
 serv_url: ""
-container_clean_interval: 7
-release_clean_interval: 1
-pkg_clean_interval: 7
+
+# unit: day
+lifecycle:
+  container_running: 7
+  release: 1
+  pkg: 7
+  image_created: 1
