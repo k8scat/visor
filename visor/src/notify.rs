@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
+use serde::Serialize;
 use serde_json::json;
 use shiplift::rep::Container;
 
@@ -9,7 +10,7 @@ use crate::{get_cpu_usage, get_disk_usage, get_mem_usage, parse_status_time, Ins
 
 #[async_trait]
 pub trait Notifier {
-    async fn notify(&self, msg: &str) -> Result<()>;
+    async fn notify(&self, msg: &str, user_id: &Option<&String>) -> Result<()>;
 }
 
 #[derive(Debug, Clone)]
@@ -17,17 +18,31 @@ pub struct WechatNotifier {
     webhook: String,
 }
 
+#[derive(Debug, Serialize)]
+struct NotifyRequest {
+    msgtype: String,
+    markdown: serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    mentioned_list: Option<Vec<String>>,
+}
+
 #[async_trait]
 impl Notifier for WechatNotifier {
-    async fn notify(&self, msg: &str) -> Result<()> {
+    async fn notify(&self, msg: &str, user_id: &Option<&String>) -> Result<()> {
         let client = reqwest::Client::new();
-        let body = json!({
-            "msgtype": "markdown",
-            "markdown": json!({
+
+        let mut req = NotifyRequest {
+            msgtype: "markdown".to_string(),
+            markdown: json!({
                 "content": msg,
-            })
-        });
-        let res = client.post(&self.webhook).json(&body).send().await?;
+            }),
+            mentioned_list: None,
+        };
+        if let Some(user_id) = user_id {
+            req.mentioned_list = Some(vec![user_id.to_string()]);
+        }
+
+        let res = client.post(&self.webhook).json(&req).send().await?;
         if res.status().is_success() {
             Ok(())
         } else {

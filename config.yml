@@ -9,3 +9,8 @@ lifecycle:
   release: 1
   pkg: 7
   image_created: 1
+
+wechat:
+  corp_id: ""
+  app_secret: ""
+  department_id: 1

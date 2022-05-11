@@ -1,4 +1,5 @@
 use chrono::prelude::{DateTime, Utc};
+use std::collections::HashMap;
 use std::ops::Sub;
 use std::time::{Duration, SystemTime};
 
@@ -113,7 +114,12 @@ mod tests {
     }
 }
 
-pub async fn stop_containers<T>(docker: &Docker, cfg: &Config, notifier: &T) -> Result<()>
+pub async fn stop_containers<T>(
+    docker: &Docker,
+    cfg: &Config,
+    notifier: &T,
+    users: &HashMap<String, String>,
+) -> Result<()>
 where
     T: Notifier,
 {
@@ -150,8 +156,9 @@ where
         stop_container(docker, container_id).await?;
         info!("Stop container: {}", container_id);
 
+        let user_id = users.get(&instance.owner);
         let msg = message_tpl(container, &instance, &cfg.serv_url);
-        notifier.notify(&msg).await?;
+        notifier.notify(&msg, &user_id).await?;
     }
     Ok(())
 }

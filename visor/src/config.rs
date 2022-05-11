@@ -10,6 +10,14 @@ pub struct Config {
     pub mem_limit: f32,
     pub serv_url: String,
     pub lifecycle: Lifecycle,
+    pub wechat: Wechat,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Wechat {
+    pub corp_id: String,
+    pub app_secret: String,
+    pub department_id: u32,
 }
 
 #[derive(Debug, Clone, Deserialize)]

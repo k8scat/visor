@@ -3,12 +3,14 @@ mod docker;
 mod instance;
 mod notify;
 mod psutil;
+mod wechat;
 
 use anyhow::Ok;
 use anyhow::Result;
 use clap::Parser;
 use log::warn;
 use shiplift::Docker;
+use wechat::Wechat;
 
 use crate::config::Config;
 use crate::docker::*;
@@ -18,7 +20,7 @@ use crate::psutil::*;
 
 /// Monitor resource usage and clean unused resource, keep the server usable.
 #[derive(Parser, Debug)]
-#[clap(author = "K8sCat <rustpanic@gmail.com>", version = "0.1.15", about, long_about = None)]
+#[clap(author = "K8sCat <rustpanic@gmail.com>", version = "0.1.16", about, long_about = None)]
 struct Args {
     #[clap(short, long, value_name = "FILE", default_value_t = String::from("config.json"))]
     config: String,
@@ -28,12 +30,21 @@ struct Args {
     daemon: bool,
 }
 
-async fn monitor<T>(cfg: &Config, docker: &Docker, notifier: &T) -> Result<()>
+async fn monitor<'a, T>(
+    cfg: &Config,
+    docker: &Docker,
+    notifier: &T,
+    wechat: &mut Wechat<'a>,
+) -> Result<()>
 where
     T: Notifier,
 {
+    let users = wechat
+        .map_users_by_department(cfg.wechat.department_id)
+        .await?;
+
     // 限制 CPU 和内存使用率，并停止过载的容器
-    if let Err(e) = stop_containers(docker, cfg, notifier).await {
+    if let Err(e) = stop_containers(docker, cfg, notifier, &users).await {
         warn!("Stop containers failed: {}", e);
     }
 
@@ -76,11 +87,17 @@ async fn main() {
     let notifier = WechatNotifier::new(&cfg.notify_webhook).unwrap();
     let docker = Docker::new();
 
+    let mut wechat = Wechat::new(&cfg.wechat.corp_id, &cfg.wechat.app_secret);
+
     if args.daemon {
         loop {
-            monitor(&cfg, &docker, &notifier).await.unwrap();
+            monitor(&cfg, &docker, &notifier, &mut wechat)
+                .await
+                .unwrap();
         }
     }
 
-    monitor(&cfg, &docker, &notifier).await.unwrap();
+    monitor(&cfg, &docker, &notifier, &mut wechat)
+        .await
+        .unwrap();
 }
