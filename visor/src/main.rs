@@ -8,6 +8,7 @@ mod wechat;
 use anyhow::Ok;
 use anyhow::Result;
 use clap::Parser;
+use log::info;
 use log::warn;
 use shiplift::Docker;
 use wechat::Wechat;
@@ -20,7 +21,7 @@ use crate::psutil::*;
 
 /// Monitor resource usage and clean unused resource, keep the server usable.
 #[derive(Parser, Debug)]
-#[clap(author = "K8sCat <rustpanic@gmail.com>", version = "0.1.16", about, long_about = None)]
+#[clap(author = "K8sCat <rustpanic@gmail.com>", version = "0.1.17", about, long_about = None)]
 struct Args {
     #[clap(short, long, value_name = "FILE", default_value_t = String::from("config.json"))]
     config: String,
@@ -42,6 +43,7 @@ where
     let users = wechat
         .map_users_by_department(cfg.wechat.department_id)
         .await?;
+    info!("Found users count: {}", users.len());
 
     // 限制 CPU 和内存使用率，并停止过载的容器
     if let Err(e) = stop_containers(docker, cfg, notifier, &users).await {

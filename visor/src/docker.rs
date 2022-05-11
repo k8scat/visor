@@ -153,12 +153,14 @@ where
             warn!("Get instance owner failed: {}", e);
             Instance::default()
         });
+        info!("Owner email: {}", instance.owner);
+
         stop_container(docker, container_id).await?;
         info!("Stop container: {}", container_id);
 
         let user_id = users.get(&instance.owner);
         let msg = message_tpl(container, &instance, &cfg.serv_url);
-        notifier.notify(&msg, &user_id).await?;
+        notifier.notify(&msg, user_id).await?;
     }
     Ok(())
 }
