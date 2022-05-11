@@ -54,12 +54,19 @@ impl<'a> Wechat<'a> {
         department_id: u32,
     ) -> Result<HashMap<String, String>> {
         self.refresh_access_token().await?;
+        if self.access_token.is_none() {
+            return Err(anyhow!("access_token is None"));
+        }
 
         let api = format!("{}/cgi-bin/user/list", BASE_API);
         let res = self
             .client
             .get(&api)
-            .query(&[("department_id", department_id.to_string())])
+            .query(&[
+                ("department_id", department_id.to_string()),
+                ("fetch_child", "1".to_string()),
+                ("access_token", self.access_token.clone().unwrap()),
+            ])
             .send()
             .await?
             .json::<ListDetailUsersResponse>()
