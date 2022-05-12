@@ -76,7 +76,12 @@ impl<'a> Wechat<'a> {
         } else {
             let mut m = HashMap::new();
             for user in res.userlist.iter() {
-                m.insert(user.email.clone(), user.userid.clone());
+                if user.email.is_empty() {
+                    let email = format!("{}@ones.ai", user.userid.to_lowercase());
+                    m.insert(email, user.userid.clone());
+                } else {
+                    m.insert(user.email.clone(), user.userid.clone());
+                }
             }
             Ok(m)
         }
