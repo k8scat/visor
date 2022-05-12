@@ -13,6 +13,7 @@ pub struct Wechat<'a> {
     pub access_token: Option<String>,
     pub expires_time: Option<DateTime<Local>>,
     pub client: reqwest::Client,
+    pub users: HashMap<String, String>,
 }
 
 #[derive(Deserialize)]
@@ -38,21 +39,23 @@ pub struct ListDetailUsersResponse {
 }
 
 impl<'a> Wechat<'a> {
-    pub fn new(corp_id: &'a str, app_secret: &'a str) -> Self {
-        let client = reqwest::Client::new();
-        Self {
-            corp_id,
-            app_secret,
-            access_token: None,
-            expires_time: None,
-            client,
+    pub fn new(corp_id: &'a str, app_secret: &'a str) -> Result<Self> {
+        if corp_id.is_empty() || app_secret.is_empty() {
+            Err(anyhow!("Corp ID or App Secret is empty"))
+        } else {
+            let client = reqwest::Client::new();
+            Ok(Self {
+                corp_id,
+                app_secret,
+                access_token: None,
+                expires_time: None,
+                client,
+                users: HashMap::new(),
+            })
         }
     }
 
-    pub async fn map_users_by_department(
-        &mut self,
-        department_id: u32,
-    ) -> Result<HashMap<String, String>> {
+    pub async fn map_users_by_department(&mut self, department_id: u32) -> Result<()> {
         self.refresh_access_token().await?;
         if self.access_token.is_none() {
             return Err(anyhow!("access_token is None"));
@@ -74,16 +77,15 @@ impl<'a> Wechat<'a> {
         if res.errcode != 0 {
             Err(anyhow!("list detail users failed: {}", res.errmsg))
         } else {
-            let mut m = HashMap::new();
             for user in res.userlist.iter() {
                 if user.email.is_empty() {
                     let email = format!("{}@ones.ai", user.userid.to_lowercase());
-                    m.insert(email, user.userid.clone());
+                    self.users.insert(email, user.userid.clone());
                 } else {
-                    m.insert(user.email.clone(), user.userid.clone());
+                    self.users.insert(user.email.clone(), user.userid.clone());
                 }
             }
-            Ok(m)
+            Ok(())
         }
     }
 

@@ -21,7 +21,7 @@ use crate::psutil::*;
 
 /// Monitor resource usage and clean unused resource, keep the server usable.
 #[derive(Parser, Debug)]
-#[clap(author = "K8sCat <rustpanic@gmail.com>", version = "0.1.19", about, long_about = None)]
+#[clap(author = "K8sCat <rustpanic@gmail.com>", version = "0.2.0", about, long_about = None)]
 struct Args {
     #[clap(short, long, value_name = "FILE", default_value_t = String::from("config.json"))]
     config: String,
@@ -40,13 +40,8 @@ async fn monitor<'a, T>(
 where
     T: Notifier,
 {
-    let users = wechat
-        .map_users_by_department(cfg.wechat.department_id)
-        .await?;
-    info!("Found users count: {}", users.len());
-
     // 限制 CPU 和内存使用率，并停止过载的容器
-    if let Err(e) = stop_containers(docker, cfg, notifier, &users).await {
+    if let Err(e) = stop_containers(docker, cfg, notifier, wechat).await {
         warn!("Stop containers failed: {}", e);
     }
 
@@ -89,7 +84,12 @@ async fn main() {
     let notifier = WechatNotifier::new(&cfg.notify_webhook).unwrap();
     let docker = Docker::new();
 
-    let mut wechat = Wechat::new(&cfg.wechat.corp_id, &cfg.wechat.app_secret);
+    let mut wechat = Wechat::new(&cfg.wechat.corp_id, &cfg.wechat.app_secret).unwrap();
+    wechat
+        .map_users_by_department(cfg.wechat.department_id)
+        .await
+        .unwrap();
+    info!("Wechat users count: {}", wechat.users.len());
 
     if args.daemon {
         loop {

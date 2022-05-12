@@ -1,5 +1,4 @@
 use chrono::prelude::{DateTime, Utc};
-use std::collections::HashMap;
 use std::ops::Sub;
 use std::time::{Duration, SystemTime};
 
@@ -13,6 +12,7 @@ use crate::config::Config;
 use crate::instance::{get_instance, Instance};
 use crate::notify::{message_tpl, Notifier};
 use crate::psutil::{get_cpu_usage, get_disk_usage, get_mem_usage};
+use crate::wechat::wechat::Wechat;
 
 // https://docs.docker.com/engine/reference/commandline/ps/#filtering
 pub async fn list_exited_containers(docker: &Docker) -> Result<Vec<Container>> {
@@ -114,11 +114,11 @@ mod tests {
     }
 }
 
-pub async fn stop_containers<T>(
+pub async fn stop_containers<'a, T>(
     docker: &Docker,
     cfg: &Config,
     notifier: &T,
-    users: &HashMap<String, String>,
+    wechat: &mut Wechat<'a>,
 ) -> Result<()>
 where
     T: Notifier,
@@ -158,7 +158,15 @@ where
         stop_container(docker, container_id).await?;
         info!("Stop container: {}", container_id);
 
-        let user_id = users.get(&instance.owner);
+        let mut user_id: Option<&String>;
+        user_id = wechat.users.get(&instance.owner);
+        if user_id.is_none() {
+            wechat
+                .map_users_by_department(cfg.wechat.department_id)
+                .await?;
+            user_id = wechat.users.get(&instance.owner);
+        }
+
         let msg = message_tpl(container, &instance, &cfg.serv_url);
         notifier.notify(&msg, user_id).await?;
     }
