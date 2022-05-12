@@ -11,7 +11,7 @@ use clap::Parser;
 use log::info;
 use log::warn;
 use shiplift::Docker;
-use wechat::Wechat;
+use wechat::wechat::Wechat;
 
 use crate::config::Config;
 use crate::docker::*;
@@ -21,7 +21,7 @@ use crate::psutil::*;
 
 /// Monitor resource usage and clean unused resource, keep the server usable.
 #[derive(Parser, Debug)]
-#[clap(author = "K8sCat <rustpanic@gmail.com>", version = "0.1.18", about, long_about = None)]
+#[clap(author = "K8sCat <rustpanic@gmail.com>", version = "0.1.19", about, long_about = None)]
 struct Args {
     #[clap(short, long, value_name = "FILE", default_value_t = String::from("config.json"))]
     config: String,

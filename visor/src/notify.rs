@@ -1,8 +1,6 @@
-use anyhow::{anyhow, Result};
+use crate::wechat::group_robot::{GroupRobot, Markdown, Message, Text};
+use anyhow::{anyhow, Ok, Result};
 use async_trait::async_trait;
-use log::info;
-use serde::Serialize;
-use serde_json::json;
 use shiplift::rep::Container;
 
 use crate::{get_cpu_usage, get_disk_usage, get_mem_usage, parse_status_time, Instance};
@@ -19,41 +17,26 @@ pub struct WechatNotifier {
     webhook: String,
 }
 
-#[derive(Debug, Serialize)]
-struct NotifyRequest {
-    msgtype: String,
-    markdown: serde_json::Value,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    mentioned_list: Vec<String>,
-}
-
 #[async_trait]
 impl Notifier for WechatNotifier {
     async fn notify(&self, msg: &str, user_id: Option<&String>) -> Result<()> {
-        let client = reqwest::Client::new();
+        let group = GroupRobot::new(self.webhook.clone())?;
 
-        let mut req = NotifyRequest {
-            msgtype: "markdown".to_string(),
-            markdown: json!({
-                "content": msg,
-            }),
-            mentioned_list: Vec::new(),
+        let m = Markdown {
+            content: msg.to_string(),
         };
-        if let Some(user_id) = user_id {
-            info!("Found wechat user_id: {}", user_id);
-            let user_id = user_id.to_string();
-            req.mentioned_list = vec![user_id];
-        }
+        let markdown = Message::markdown(&m);
+        group.send_message(&markdown).await?;
 
-        let res = client.post(&self.webhook).json(&req).send().await?;
-        if res.status().is_success() {
-            Ok(())
-        } else {
-            Err(anyhow!(
-                "Failed to send notification: {}",
-                res.text().await?
-            ))
-        }
+        let mentioned_list = user_id.map(|id| vec![id.clone()]);
+        let t = &Text {
+            content: "".to_string(),
+            mentioned_list,
+            mentioned_mobile_list: None,
+        };
+        let text = Message::text(&t);
+        group.send_message(&text).await?;
+        Ok(())
     }
 }
 
