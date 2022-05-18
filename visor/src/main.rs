@@ -19,9 +19,8 @@ use crate::instance::*;
 use crate::notify::{Notifier, WechatNotifier};
 use crate::psutil::*;
 
-/// Monitor resource usage and clean unused resource, keep the server usable.
 #[derive(Parser, Debug)]
-#[clap(author = "K8sCat <rustpanic@gmail.com>", version = "0.2.4", about, long_about = None)]
+#[clap(author, version, about, long_about = None)]
 struct Args {
     #[clap(short, long, value_name = "FILE", default_value_t = String::from("config.json"))]
     config: String,
@@ -84,7 +83,12 @@ async fn main() {
     let notifier = WechatNotifier::new(&cfg.notify_webhook).unwrap();
     let docker = Docker::new();
 
-    let mut wechat = Wechat::new(&cfg.wechat.corp_id, &cfg.wechat.app_secret).unwrap();
+    let mut wechat = Wechat::new(
+        &cfg.wechat.corp_id,
+        &cfg.wechat.app_secret,
+        cfg.wechat.users.clone(),
+    )
+    .unwrap();
     wechat
         .map_users_by_department(cfg.wechat.department_id)
         .await

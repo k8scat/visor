@@ -39,7 +39,11 @@ pub struct ListDetailUsersResponse {
 }
 
 impl<'a> Wechat<'a> {
-    pub fn new(corp_id: &'a str, app_secret: &'a str) -> Result<Self> {
+    pub fn new(
+        corp_id: &'a str,
+        app_secret: &'a str,
+        users: HashMap<String, String>,
+    ) -> Result<Self> {
         if corp_id.is_empty() || app_secret.is_empty() {
             Err(anyhow!("Corp ID or App Secret is empty"))
         } else {
@@ -50,7 +54,7 @@ impl<'a> Wechat<'a> {
                 access_token: None,
                 expires_time: None,
                 client,
-                users: HashMap::new(),
+                users: users,
             })
         }
     }

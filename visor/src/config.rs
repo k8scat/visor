@@ -1,4 +1,4 @@
-use std::fs;
+use std::{collections::HashMap, fs};
 
 use anyhow::Result;
 use serde::Deserialize;
@@ -18,6 +18,7 @@ pub struct Wechat {
     pub corp_id: String,
     pub app_secret: String,
     pub department_id: u32,
+    pub users: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

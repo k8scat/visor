@@ -68,7 +68,7 @@ pub fn message_tpl(container: &Container, inst: &Instance, serv_url: &str) -> St
 > 运行时长: <font color="comment">{}</font>
 > 部署目录: <font color="comment">{}</font>
 > 创建者: <font color="comment">{}</font>
-> 访问地址: [{}]{}
+> 访问地址: [{}]({})
 > 数据卷: <font color="comment>{}</font>
 
 当前资源使用情况:

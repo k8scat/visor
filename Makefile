@@ -1,5 +1,5 @@
 NAME = visor
-VERSION = 3
+VERSION = 0.2.5
 
 .PHONY: build
 build:

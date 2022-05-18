@@ -14,3 +14,5 @@ wechat:
   corp_id: ""
   app_secret: ""
   department_id: 1
+  users:
+    lixiangyuan1@ones.ai: "lixiangyuan"

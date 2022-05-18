@@ -1,6 +1,7 @@
 [package]
 name = "visor"
-version = "0.2.4"
+version = "0.2.5"
+description = "监控服务器的资源使用情况，提高服务器的可用性。"
 edition = "2021"
 authors = ["K8sCat <k8scat@gmail.com>"]
 homepage = "https://github.com/k8scat/visor"
