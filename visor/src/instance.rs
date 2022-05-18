@@ -20,6 +20,7 @@ pub struct Instance {
     pub deploy_dir: String,
 }
 
+// Todo: 获取实例访问地址、容器数据卷
 pub fn get_instance(container: &Container) -> Result<Instance> {
     let mut https_port: u64 = 0;
     for port in container.ports.iter() {
@@ -32,7 +33,7 @@ pub fn get_instance(container: &Container) -> Result<Instance> {
     }
 
     let cmd = format!(
-        "grep -B1 {} /data/ones/autodeploy/records.log | head -n 1",
+        "grep -B1 {} /data/ones/autodeploy/records.log | tail -n 2 | head -n 1",
         https_port
     );
     let deploy_dir = exec(&cmd)?;
