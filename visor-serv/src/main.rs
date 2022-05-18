@@ -1,18 +1,7 @@
-use actix_web::{get, web, App, HttpServer, Responder, middleware};
-use shiplift::Docker;
+mod services;
 
-#[get("/start_container/{container_id}")]
-async fn start_container(container_id: web::Path<String>) -> impl Responder {
-    let docker = Docker::new();
-    let container_id = container_id.to_string();
-    if container_id.len().lt(&12usize) {
-        return String::from("Container ID is too short");
-    }
-    match docker.containers().get(container_id.to_string()).start().await {
-        Ok(_) => String::from("Container started"),
-        Err(e) => e.to_string(),
-    }
-}
+use crate::services::start_container;
+use actix_web::{middleware, App, HttpServer};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -24,7 +13,7 @@ async fn main() -> std::io::Result<()> {
             .wrap(middleware::Logger::default())
             .service(start_container)
     })
-        .bind(("0.0.0.0", 17456))?
-        .run()
-        .await
+    .bind(("0.0.0.0", 17456))?
+    .run()
+    .await
 }
