@@ -1,6 +1,6 @@
 [package]
 name = "visor"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 authors = ["K8sCat <k8scat@gmail.com>"]
 homepage = "https://github.com/k8scat/visor"

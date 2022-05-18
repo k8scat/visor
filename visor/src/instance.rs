@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-/// 实例资源
 use std::fs;
 use std::ops::Sub;
 use std::process::Command;
@@ -7,6 +6,7 @@ use std::time::{Duration, SystemTime};
 
 use anyhow::{anyhow, Result};
 use log::{info, warn};
+use serde::Deserialize;
 use shiplift::rep::Container;
 use shiplift::Docker;
 
@@ -18,6 +18,13 @@ const OWNER_FILE: &str = ".owner_email";
 pub struct Instance {
     pub owner: String,
     pub deploy_dir: String,
+    pub config: InstanceConfig,
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct InstanceConfig {
+    pub base_url: String,
+    pub volume: String,
 }
 
 // Todo: 获取实例访问地址、容器数据卷
@@ -37,9 +44,64 @@ pub fn get_instance(container: &Container) -> Result<Instance> {
         https_port
     );
     let deploy_dir = exec(&cmd)?;
+    if deploy_dir.is_empty() {
+        return Err(anyhow!("Deploy dir not found"));
+    }
+
+    let config = get_instance_config(&deploy_dir).unwrap_or_default();
+
     let cmd = format!("cat {}/{}", deploy_dir, OWNER_FILE);
     let owner = exec(&cmd)?;
-    Ok(Instance { owner, deploy_dir })
+    Ok(Instance {
+        owner,
+        deploy_dir,
+        config,
+    })
+}
+
+fn get_instance_config(deploy_dir: &str) -> Result<InstanceConfig> {
+    let dirs: Vec<String> = fs::read_dir(deploy_dir.clone())?
+        .filter(|entry| match entry {
+            Ok(entry) => entry.path().is_dir(),
+            _ => false,
+        })
+        .map(|entry| {
+            if entry.is_err() {
+                String::new()
+            } else {
+                entry
+                    .unwrap()
+                    .path()
+                    .to_str()
+                    .unwrap_or_default()
+                    .to_string()
+            }
+        })
+        .collect();
+
+    for d in dirs {
+        let config_file = format!("{}/config.json", d);
+        let s = fs::read_to_string(&config_file);
+        match s {
+            Ok(s) => {
+                let c = serde_json::from_str::<InstanceConfig>(&s);
+                match c {
+                    Ok(c) => {
+                        return Ok(c);
+                    }
+                    Err(e) => {
+                        warn!("Deserialize instance config failed: {}", e);
+                        continue;
+                    }
+                }
+            }
+            Err(e) => {
+                warn!("Read instance config file failed: {}", e);
+                continue;
+            }
+        }
+    }
+    Err(anyhow!("Instance config not found"))
 }
 
 fn exec(cmd: &str) -> Result<String> {
