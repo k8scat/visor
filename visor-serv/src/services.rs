@@ -1,4 +1,5 @@
 use actix_web::{get, web, HttpRequest, HttpResponse};
+use bollard::errors::Error;
 use bollard::Docker;
 
 #[get("/start_container/{container_id}")]
@@ -14,15 +15,20 @@ async fn start_container(req: HttpRequest, container_id: web::Path<String>) -> H
     }
 
     match docker.start_container::<String>(container_id, None).await {
-        Ok(_) => html(String::from("容器已启动")),
-        Err(e) => {
-            let e = e.to_string();
-            if e.contains("304 Not Modified") {
-                html(format!(r#"容器已启动 <p style="display: none;">{}</p>"#, e))
-            } else {
-                html(format!("容器启动失败: {}", e))
+        Ok(_) => html(String::from("容器启动成功")),
+        Err(e) => match e {
+            Error::DockerResponseServerError {
+                status_code,
+                message,
+            } => {
+                if status_code.eq(&304) {
+                    return html(String::from("容器已启动"));
+                } else {
+                    return html(format!("启动容器失败：{}", message));
+                }
             }
-        }
+            _ => html(format!("容器启动失败: {}", e)),
+        },
     }
 }
 
