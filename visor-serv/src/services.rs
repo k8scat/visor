@@ -9,7 +9,7 @@ async fn start_container(req: HttpRequest, container_id: web::Path<String>) -> H
 
     let docker = Docker::connect_with_socket_defaults().unwrap();
     let container_id = container_id.as_str();
-    if container_id.len().ne(&64usize) {
+    if container_id.len().lt(&12usize) {
         return html(String::from("无效的容器ID"));
     }
 

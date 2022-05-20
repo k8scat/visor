@@ -1880,7 +1880,7 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 
 [[package]]
 name = "visor"
-version = "0.2.6"
+version = "0.2.7"
 dependencies = [
  "actix-web",
  "anyhow",
@@ -1901,7 +1901,7 @@ dependencies = [
 
 [[package]]
 name = "visor-serv"
-version = "0.2.6"
+version = "0.2.7"
 dependencies = [
  "actix-web",
  "bollard",
