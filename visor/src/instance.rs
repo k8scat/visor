@@ -5,12 +5,15 @@ use std::process::Command;
 use std::time::{Duration, SystemTime};
 
 use anyhow::{anyhow, Result};
+use bollard::models::ContainerSummary;
+use bollard::Docker;
 use log::{info, warn};
 use serde::Deserialize;
-use shiplift::rep::Container;
-use shiplift::Docker;
 
-use crate::docker::list_running_containers;
+use crate::config::Config;
+use crate::container::container::*;
+use crate::notify::Notifier;
+use crate::wechat::wechat::Wechat;
 
 const OWNER_FILE: &str = ".owner_email";
 
@@ -28,13 +31,15 @@ pub struct InstanceConfig {
 }
 
 // Todo: 获取实例访问地址、容器数据卷
-pub fn get_instance(container: &Container) -> Result<Instance> {
-    let mut https_port: u64 = 0;
-    for port in container.ports.iter() {
-        if port.private_port.eq(&443) {
-            match port.public_port {
-                Some(p) => https_port = p,
-                None => return Err(anyhow!("No public port found for 443")),
+pub fn get_instance(container: &ContainerSummary) -> Result<Instance> {
+    let mut https_port: i64 = 0;
+    if let Some(ports) = &container.ports {
+        for port in ports.iter() {
+            if port.private_port.eq(&443) {
+                match port.public_port {
+                    Some(p) => https_port = p,
+                    None => return Err(anyhow!("No public port found for 443")),
+                }
             }
         }
     }
@@ -180,6 +185,47 @@ pub async fn clean_pkg(docker: &Docker, lifecycle: u64) -> Result<()> {
                 info!("Removed pkg: {}", f);
             }
         }
+    }
+    Ok(())
+}
+
+pub async fn monitor<'a, T>(
+    cfg: &Config,
+    docker: &Docker,
+    notifier: &T,
+    wechat: &mut Wechat<'a>,
+) -> Result<()>
+where
+    T: Notifier,
+{
+    // 限制 CPU 和内存使用率，并停止过载的容器
+    if let Err(e) = stop_containers(docker, cfg, notifier, wechat).await {
+        warn!("Stop containers failed: {}", e);
+    }
+
+    // 清理部署目录
+    if let Err(e) = clean_pkg(docker, cfg.lifecycle.pkg).await {
+        warn!("Clean pkg failed: {}", e);
+    };
+
+    // 清理部署包
+    if let Err(e) = clean_release(cfg.lifecycle.release) {
+        warn!("Clean release failed: {}", e);
+    };
+
+    // 清理停止的容器
+    if let Err(e) = clean_exited_containers(docker, cfg.lifecycle.container_running).await {
+        warn!("Clean containers failed: {}", e);
+    };
+
+    // 清理镜像
+    if let Err(e) = clean_images(docker, cfg.lifecycle.image_created).await {
+        warn!("Clean images failed: {}", e);
+    }
+
+    // 清理数据卷
+    if let Err(e) = clean_volumes(docker).await {
+        warn!("Clean volumes failed: {}", e);
     }
     Ok(())
 }

@@ -1,60 +1,65 @@
-use chrono::prelude::{DateTime, Utc};
-use std::ops::Sub;
-use std::time::{Duration, SystemTime};
-
-use anyhow::Result;
-use log::{info, warn};
-use regex::Regex;
-use shiplift::rep::Container;
-use shiplift::{ContainerFilter, Docker};
-
 use crate::config::Config;
 use crate::instance::{get_instance, Instance};
 use crate::notify::{message_tpl, Notifier};
 use crate::psutil::{get_cpu_usage, get_disk_usage, get_mem_usage};
 use crate::wechat::wechat::Wechat;
+use anyhow::{anyhow, Result};
+use bollard::container::ListContainersOptions;
+use bollard::image::ListImagesOptions;
+use bollard::models::ContainerSummary;
+use bollard::Docker;
+use log::{info, warn};
+use regex::Regex;
+use std::collections::HashMap;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 // https://docs.docker.com/engine/reference/commandline/ps/#filtering
-pub async fn list_exited_containers(docker: &Docker) -> Result<Vec<Container>> {
-    let opts = shiplift::ContainerListOptions::builder()
-        .filter(vec![ContainerFilter::Status(String::from("exited"))])
-        .build();
-    let containers = docker.containers().list(&opts).await?;
+pub async fn list_containers_by_status(
+    docker: &Docker,
+    status: Vec<&str>,
+) -> Result<Vec<ContainerSummary>> {
+    let mut filters = HashMap::new();
+    filters.insert("status", status);
+
+    let opts = ListContainersOptions {
+        all: true,
+        filters,
+        ..Default::default()
+    };
+    let containers = docker.list_containers(Some(opts)).await?;
     Ok(containers)
 }
 
-pub async fn list_running_containers(docker: &Docker) -> Result<Vec<Container>> {
-    let opts = shiplift::ContainerListOptions::builder()
-        .filter(vec![ContainerFilter::Status(String::from("running"))])
-        .build();
-    let containers = docker.containers().list(&opts).await?;
-    Ok(containers)
+pub async fn list_exited_containers(docker: &Docker) -> Result<Vec<ContainerSummary>> {
+    Ok(list_containers_by_status(docker, vec!["exited"]).await?)
 }
 
-pub async fn stop_container(docker: &Docker, id: &str) -> Result<()> {
-    Ok(docker.containers().get(id).stop(None).await?)
+pub async fn list_running_containers(docker: &Docker) -> Result<Vec<ContainerSummary>> {
+    Ok(list_containers_by_status(docker, vec!["running"]).await?)
 }
 
-pub async fn remove_container(docker: &Docker, id: &str) -> Result<()> {
-    Ok(docker
-        .containers()
-        .get(id)
-        .remove(Default::default())
-        .await?)
+pub async fn stop_container(docker: &Docker, container_name: &str) -> Result<()> {
+    Ok(docker.stop_container(container_name, None).await?)
+}
+
+pub async fn remove_container(docker: &Docker, container_name: &str) -> Result<()> {
+    Ok(docker.remove_container(container_name, None).await?)
 }
 
 pub async fn clean_images(docker: &Docker, lifecycle: u64) -> Result<()> {
-    let images = docker.images().list(&Default::default()).await?;
-    let t: DateTime<Utc> = SystemTime::now()
-        .sub(Duration::from_secs(lifecycle * 86400))
-        .into();
+    let opts = ListImagesOptions::<String> {
+        all: true,
+        ..Default::default()
+    };
+    let images = docker.list_images(Some(opts)).await?;
+
+    let t = (SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() - lifecycle * 86400) as i64;
     for image in images.iter() {
         if image.created.gt(&t) {
             info!("Ignore image: {}", image.id);
             continue;
         }
-
-        if let Err(e) = docker.images().get(&image.id).delete().await {
+        if let Err(e) = docker.remove_image(&image.id, None, None).await {
             warn!("Delete image {} failed: {}", image.id, e);
         } else {
             info!("Deleted image {}", image.id);
@@ -64,9 +69,9 @@ pub async fn clean_images(docker: &Docker, lifecycle: u64) -> Result<()> {
 }
 
 pub async fn clean_volumes(docker: &Docker) -> Result<()> {
-    let volumes = docker.volumes().list().await?;
-    for volume in volumes.iter() {
-        if let Err(e) = docker.volumes().get(&volume.name).delete().await {
+    let res = docker.list_volumes::<String>(None).await?;
+    for volume in res.volumes.iter() {
+        if let Err(e) = docker.remove_volume(&volume.name, None).await {
             warn!("Delete volume {} failed: {}", volume.name, e);
         } else {
             info!("Deleted volume {}", volume.name);
@@ -75,14 +80,19 @@ pub async fn clean_volumes(docker: &Docker) -> Result<()> {
     Ok(())
 }
 
-pub fn parse_status_time(mut s: String) -> Vec<String> {
+pub fn parse_status_time(s: &str) -> Vec<String> {
+    let mut s = s.to_string();
     let re = Regex::new(r"(Exited |Up )(\([0-9]+\) )?").unwrap();
     s = re.replace_all(&s, "").to_string();
     let items = s.split(" ").collect::<Vec<&str>>();
     vec![items[0].to_string(), items[1].to_string()]
 }
 
-pub fn status_into_running_time(s: String) -> Result<Duration> {
+pub fn status_into_running_time(s: &str) -> Result<Duration> {
+    if s.is_empty() {
+        return Err(anyhow!("Empty status"));
+    }
+
     let items = parse_status_time(s);
     let num = items[0].parse::<u64>().unwrap_or_default();
     let unit = items[1].clone();
@@ -103,12 +113,12 @@ mod tests {
     #[test]
     fn test_parse_status_time() {
         let s = "Up 2 weeks";
-        let items = super::parse_status_time(s.to_string());
+        let items = super::parse_status_time(s);
         assert_eq!(items[0], "2");
         assert_eq!(items[1], "weeks");
 
         let s = "Exited (137) 9 hours ago";
-        let items = super::parse_status_time(s.to_string());
+        let items = super::parse_status_time(s);
         assert_eq!(items[0], "9");
         assert_eq!(items[1], "hours");
     }
@@ -142,13 +152,15 @@ where
         }
 
         containers.sort_by(|a, b| {
-            let a_time = status_into_running_time(a.status.clone()).unwrap_or_default();
-            let b_time = status_into_running_time(b.status.clone()).unwrap_or_default();
+            let a_time =
+                status_into_running_time(&a.status.clone().unwrap_or_default()).unwrap_or_default();
+            let b_time =
+                status_into_running_time(&b.status.clone().unwrap_or_default()).unwrap_or_default();
             b_time.cmp(&a_time)
         });
 
         let container = &containers[0];
-        let container_id = &container.id;
+        let container_id = &container.id.clone().unwrap_or_default();
         let instance = get_instance(&container).unwrap_or_else(|e| {
             warn!("Get instance owner failed: {}", e);
             Instance::default()
@@ -182,16 +194,22 @@ pub async fn clean_exited_containers(docker: &Docker, lifecycle: u64) -> Result<
 
     let d = Duration::from_secs(86400 * lifecycle);
     for container in containers.iter() {
-        let t = status_into_running_time(container.status.clone()).unwrap_or_default();
+        if container.id.is_none() {
+            continue;
+        }
+        let container_id = container.id.clone().unwrap_or_default();
+
+        let t = status_into_running_time(&container.status.clone().unwrap_or_default())
+            .unwrap_or_default();
         if t.lt(&d) {
-            info!("Ignore container {}", &container.id);
+            info!("Ignore container {}", container_id);
             continue;
         }
 
-        if let Err(e) = remove_container(docker, &container.id).await {
-            warn!("Remove container {} failed: {}", container.id, e);
+        if let Err(e) = remove_container(docker, &container_id).await {
+            warn!("Remove container {} failed: {}", container_id, e);
         } else {
-            info!("Removed container {}", &container.id);
+            info!("Removed container {}", container_id);
         }
     }
     Ok(())

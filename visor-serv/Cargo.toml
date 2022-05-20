@@ -1,6 +1,6 @@
 [package]
 name = "visor-serv"
-version = "0.1.0"
+version = "0.2.6"
 edition = "2021"
 authors = ["K8sCat <k8scat@gmail.com>"]
 license = "MIT"
@@ -9,5 +9,5 @@ license = "MIT"
 
 [dependencies]
 actix-web = "4"
-shiplift = "0.7"
 env_logger = "0.8.4"
+bollard = "0.12"

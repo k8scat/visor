@@ -1,5 +1,5 @@
 use actix_web::{get, web, HttpRequest, HttpResponse};
-use shiplift::Docker;
+use bollard::Docker;
 
 #[get("/start_container/{container_id}")]
 async fn start_container(req: HttpRequest, container_id: web::Path<String>) -> HttpResponse {
@@ -7,15 +7,13 @@ async fn start_container(req: HttpRequest, container_id: web::Path<String>) -> H
         println!("{}={:?}", k, v);
     });
 
-    let docker = Docker::new();
-    let container_id = container_id.to_string();
+    let docker = Docker::connect_with_socket_defaults().unwrap();
+    let container_id = container_id.as_str();
     if container_id.len().ne(&64usize) {
         return html(String::from("无效的容器ID"));
     }
 
-    let container = docker.containers().get(container_id.to_string());
-
-    match container.start().await {
+    match docker.start_container::<String>(container_id, None).await {
         Ok(_) => html(String::from("容器已启动")),
         Err(e) => {
             let e = e.to_string();

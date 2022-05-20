@@ -1,22 +1,19 @@
 mod config;
-mod docker;
+mod container;
 mod instance;
 mod notify;
 mod psutil;
 mod wechat;
 
-use anyhow::Ok;
-use anyhow::Result;
+use bollard::Docker;
 use clap::Parser;
 use log::info;
-use log::warn;
-use shiplift::Docker;
 use wechat::wechat::Wechat;
 
 use crate::config::Config;
-use crate::docker::*;
+use crate::container::container::*;
 use crate::instance::*;
-use crate::notify::{Notifier, WechatNotifier};
+use crate::notify::WechatNotifier;
 use crate::psutil::*;
 
 #[derive(Parser, Debug)]
@@ -30,58 +27,16 @@ struct Args {
     daemon: bool,
 }
 
-async fn monitor<'a, T>(
-    cfg: &Config,
-    docker: &Docker,
-    notifier: &T,
-    wechat: &mut Wechat<'a>,
-) -> Result<()>
-where
-    T: Notifier,
-{
-    // 限制 CPU 和内存使用率，并停止过载的容器
-    if let Err(e) = stop_containers(docker, cfg, notifier, wechat).await {
-        warn!("Stop containers failed: {}", e);
-    }
-
-    // 清理部署目录
-    if let Err(e) = clean_pkg(docker, cfg.lifecycle.pkg).await {
-        warn!("Clean pkg failed: {}", e);
-    };
-
-    // 清理部署包
-    if let Err(e) = clean_release(cfg.lifecycle.release) {
-        warn!("Clean release failed: {}", e);
-    };
-
-    // 清理停止的容器
-    if let Err(e) = clean_exited_containers(docker, cfg.lifecycle.container_running).await {
-        warn!("Clean containers failed: {}", e);
-    };
-
-    // 清理镜像
-    if let Err(e) = clean_images(docker, cfg.lifecycle.image_created).await {
-        warn!("Clean images failed: {}", e);
-    }
-
-    // 清理数据卷
-    if let Err(e) = clean_volumes(docker).await {
-        warn!("Clean volumes failed: {}", e);
-    }
-    Ok(())
-}
-
 #[tokio::main]
 async fn main() {
     std::env::set_var("RUST_LOG", "info");
     env_logger::init();
 
     let args = Args::parse();
-
     let cfg = Config::new(&args.config).unwrap();
 
     let notifier = WechatNotifier::new(&cfg.notify_webhook).unwrap();
-    let docker = Docker::new();
+    let docker = Docker::connect_with_socket_defaults().unwrap();
 
     let mut wechat = Wechat::new(
         &cfg.wechat.corp_id,

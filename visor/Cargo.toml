@@ -1,6 +1,6 @@
 [package]
 name = "visor"
-version = "0.2.5"
+version = "0.2.6"
 description = "监控服务器的资源使用情况，提高服务器的可用性。"
 edition = "2021"
 authors = ["K8sCat <k8scat@gmail.com>"]
@@ -12,7 +12,6 @@ license = "MIT"
 [dependencies]
 tokio = { version = "1.15.0", features = ["full"] }
 psutil = "3.2.1"
-shiplift = "0.7"
 anyhow = "1.0"
 reqwest = { version = "0.11", features = ["json"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -25,3 +24,4 @@ actix-web = "4"
 regex = "1"
 async-trait = "0.1.53"
 chrono = "0.4"
+bollard = "0.12"
