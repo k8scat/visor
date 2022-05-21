@@ -1,6 +1,6 @@
 [package]
 name = "visor-serv"
-version = "0.2.8"
+version = "0.2.9"
 edition = "2021"
 authors = ["K8sCat <k8scat@gmail.com>"]
 license = "MIT"
@@ -10,4 +10,4 @@ license = "MIT"
 [dependencies]
 actix-web = "4"
 env_logger = "0.8.4"
-bollard = "0.12"
+bollard = { git = "https://github.com/k8scat/bollard", branch = "master" }

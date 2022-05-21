@@ -280,8 +280,7 @@ dependencies = [
 [[package]]
 name = "bollard"
 version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b1d4b9e55620571c2200f4be87db2a9a69e2a107fc7d206a6accad58c3536cb"
+source = "git+https://github.com/k8scat/bollard?branch=master#16a02addbd9193f2b871af0f1bd1644df0aeab59"
 dependencies = [
  "base64",
  "bollard-stubs",
@@ -1880,7 +1879,7 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 
 [[package]]
 name = "visor"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "actix-web",
  "anyhow",
@@ -1901,7 +1900,7 @@ dependencies = [
 
 [[package]]
 name = "visor-serv"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "actix-web",
  "bollard",

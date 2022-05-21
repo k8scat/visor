@@ -1,6 +1,6 @@
 [package]
 name = "visor"
-version = "0.2.8"
+version = "0.2.9"
 description = "监控服务器的资源使用情况，提高服务器的可用性。"
 edition = "2021"
 authors = ["K8sCat <k8scat@gmail.com>"]
@@ -24,4 +24,4 @@ actix-web = "4"
 regex = "1"
 async-trait = "0.1.53"
 chrono = "0.4"
-bollard = "0.12"
+bollard = { git = "https://github.com/k8scat/bollard", branch = "master" }
