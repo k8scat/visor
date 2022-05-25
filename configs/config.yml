@@ -5,7 +5,7 @@ serv_url: ""
 
 # unit: day
 lifecycle:
-  container_running: 7
+  container: 7
   release: 1
   pkg: 7
   image_created: 1
@@ -16,3 +16,6 @@ wechat:
   department_id: 1
   users:
     lixiangyuan1@ones.ai: "lixiangyuan"
+
+whitelist:
+  - "containerid"

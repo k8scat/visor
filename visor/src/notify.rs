@@ -1,4 +1,7 @@
-use crate::wechat::group_robot::{GroupRobot, Markdown, Message, Text};
+use crate::{
+    config::Config,
+    wechat::group_robot::{GroupRobot, Markdown, Message, Text},
+};
 use anyhow::{anyhow, Ok, Result};
 use async_trait::async_trait;
 use bollard::models::ContainerSummary;
@@ -52,7 +55,7 @@ impl WechatNotifier {
     }
 }
 
-pub fn message_tpl(container: &ContainerSummary, inst: &Instance, serv_url: &str) -> String {
+pub fn message_tpl(container: &ContainerSummary, inst: &Instance, cfg: &Config) -> String {
     let mut container_id = container.id.clone().unwrap_or_default();
     container_id.truncate(12);
 
@@ -62,7 +65,7 @@ pub fn message_tpl(container: &ContainerSummary, inst: &Instance, serv_url: &str
     let cpu_usage = get_cpu_usage().unwrap();
     let mem_usage = get_mem_usage().unwrap();
     let disk_usage = get_disk_usage().unwrap();
-    let s = format!(
+    let mut s = format!(
         r##"由于私有部署环境资源使用达到上限，以下容器已被强制停止:
 > 访问地址: [{}]({})
 > 创建者: <font color="comment">{}</font>
@@ -91,14 +94,19 @@ pub fn message_tpl(container: &ContainerSummary, inst: &Instance, serv_url: &str
         container_id
     );
 
-    if serv_url.is_empty() {
-        s
-    } else {
-        format!(
+    if !cfg.serv_url.is_empty() {
+        s = format!(
             r##"{}
 > 重启链接: [点击启动]({})"##,
             s,
-            format!("{}/start_container/{}", serv_url, container_id)
+            format!("{}/start_container/{}", cfg.serv_url, container_id)
         )
     }
+
+    format!(
+        r##"{}
+
+<font color="warning">注意: 实例如不再使用，将在 {} 天后被删除！</font>"##,
+        s, cfg.lifecycle.container,
+    )
 }

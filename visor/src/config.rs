@@ -11,6 +11,10 @@ pub struct Config {
     pub serv_url: String,
     pub lifecycle: Lifecycle,
     pub wechat: Wechat,
+    #[serde(default = "Vec::new")]
+    pub whitelist: Vec<String>,
+    #[serde(default = "HashMap::new")]
+    pub whitelist_map: HashMap<String, ()>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -23,7 +27,7 @@ pub struct Wechat {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Lifecycle {
-    pub container_running: u64,
+    pub container: u64,
     pub pkg: u64,
     pub release: u64,
     pub image_created: u64,
@@ -32,7 +36,12 @@ pub struct Lifecycle {
 impl Config {
     pub fn new(path: &str) -> Result<Config> {
         let s = fs::read_to_string(path)?;
-        let config = serde_yaml::from_str(&s)?;
+        let mut config: Config = serde_yaml::from_str(&s)?;
+        if !config.whitelist.is_empty() {
+            for id in config.whitelist.iter() {
+                config.whitelist_map.insert(id.clone(), ());
+            }
+        }
         Ok(config)
     }
 }

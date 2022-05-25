@@ -145,7 +145,19 @@ where
             break;
         }
 
-        let mut containers = list_running_containers(docker).await?;
+        let mut containers: Vec<ContainerSummary> = list_running_containers(docker)
+            .await?
+            .into_iter()
+            .filter(|c| {
+                let id = &c.id.clone().unwrap();
+                if cfg.whitelist_map.contains_key(id) {
+                    info!("Ignored: container {} is in the whitelist", id);
+                    false
+                } else {
+                    true
+                }
+            })
+            .collect();
         if containers.is_empty() {
             info!("No running containers found");
             return Ok(());
@@ -179,7 +191,7 @@ where
             user_id = wechat.users.get(&instance.owner);
         }
 
-        let msg = message_tpl(container, &instance, &cfg.serv_url);
+        let msg = message_tpl(container, &instance, &cfg);
         notifier.notify(&msg, user_id).await?;
     }
     Ok(())
@@ -202,7 +214,11 @@ pub async fn clean_exited_containers(docker: &Docker, lifecycle: u64) -> Result<
         let t = status_into_running_time(&container.status.clone().unwrap_or_default())
             .unwrap_or_default();
         if t.lt(&d) {
-            info!("Ignore container {}", container_id);
+            info!(
+                "Ignored: container {} exited {} seconds",
+                container_id,
+                d.as_secs()
+            );
             continue;
         }
 

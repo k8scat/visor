@@ -214,7 +214,7 @@ where
     };
 
     // 清理停止的容器
-    if let Err(e) = clean_exited_containers(docker, cfg.lifecycle.container_running).await {
+    if let Err(e) = clean_exited_containers(docker, cfg.lifecycle.container).await {
         warn!("Clean containers failed: {}", e);
     };
 
