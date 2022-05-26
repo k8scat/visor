@@ -1,11 +1,3 @@
-<!-- TOC -->
-
-- [Visor](#visor)
-    - [Rules](#rules)
-    - [Author](#author)
-
-<!-- /TOC -->
-
 # Visor
 
 监控服务器的资源使用情况，提高服务器的可用性。
