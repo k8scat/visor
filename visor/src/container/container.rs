@@ -56,6 +56,12 @@ pub async fn clean_images(docker: &Docker, cfg: &Config) -> Result<()> {
     let t = (SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs()
         - cfg.lifecycle.image_created * 86400) as i64;
     for image in images.iter() {
+        for tag in image.repo_tags.iter() {
+            if cfg.whitelist.images_map.contains_key(tag) {
+                info!("Ignored: image {} is in the whitelist", image.id);
+                continue;
+            }
+        }
         if cfg.whitelist.images_map.contains_key(&image.id) {
             info!("Ignored: image {} is in the whitelist", image.id);
             continue;
