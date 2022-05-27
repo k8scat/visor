@@ -5,6 +5,7 @@ use crate::psutil::{get_cpu_usage, get_disk_usage, get_mem_usage};
 use crate::wechat::wechat::Wechat;
 use anyhow::{anyhow, Result};
 use bollard::container::ListContainersOptions;
+use bollard::errors::Error;
 use bollard::image::ListImagesOptions;
 use bollard::models::ContainerSummary;
 use bollard::Docker;
@@ -39,7 +40,18 @@ pub async fn list_running_containers(docker: &Docker) -> Result<Vec<ContainerSum
 }
 
 pub async fn stop_container(docker: &Docker, container_name: &str) -> Result<()> {
-    Ok(docker.stop_container(container_name, None).await?)
+    if let Err(e) = docker.stop_container(container_name, None).await {
+        if let Error::DockerResponseServerError {
+            status_code,
+            message,
+        } = e
+        {
+            if status_code == 500 {
+                return Err(anyhow!("{}", message));
+            }
+        }
+    }
+    Ok(())
 }
 
 pub async fn remove_container(docker: &Docker, container_name: &str) -> Result<()> {
@@ -56,12 +68,18 @@ pub async fn clean_images(docker: &Docker, cfg: &Config) -> Result<()> {
     let t = (SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs()
         - cfg.lifecycle.image_created * 86400) as i64;
     for image in images.iter() {
+        let mut tag_found = false;
         for tag in image.repo_tags.iter() {
             if cfg.whitelist.images_map.contains_key(tag) {
-                info!("Ignored: image {} is in the whitelist", image.id);
-                continue;
+                info!("Ignored: image {} is in the whitelist", tag);
+                tag_found = true;
+                break;
             }
         }
+        if tag_found {
+            continue;
+        }
+
         if cfg.whitelist.images_map.contains_key(&image.id) {
             info!("Ignored: image {} is in the whitelist", image.id);
             continue;
@@ -71,7 +89,15 @@ pub async fn clean_images(docker: &Docker, cfg: &Config) -> Result<()> {
             continue;
         }
         if let Err(e) = docker.remove_image(&image.id, None, None).await {
-            warn!("Delete image {} failed: {}", image.id, e);
+            if let Error::DockerResponseServerError {
+                status_code,
+                message,
+            } = e
+            {
+                if status_code == 500 {
+                    warn!("Delete image {} failed: {}", image.id, message);
+                }
+            }
         } else {
             info!("Deleted image {}", image.id);
         }
@@ -83,7 +109,15 @@ pub async fn clean_volumes(docker: &Docker) -> Result<()> {
     let res = docker.list_volumes::<String>(None).await?;
     for volume in res.volumes.iter() {
         if let Err(e) = docker.remove_volume(&volume.name, None).await {
-            warn!("Delete volume {} failed: {}", volume.name, e);
+            if let Error::DockerResponseServerError {
+                status_code,
+                message,
+            } = e
+            {
+                if status_code == 500 {
+                    warn!("Delete volume {} failed: {}", volume.name, message);
+                }
+            }
         } else {
             info!("Deleted volume {}", volume.name);
         }
@@ -116,22 +150,6 @@ pub fn status_into_running_time(s: &str) -> Result<Duration> {
         "months" => Ok(Duration::from_secs(num * 60 * 60 * 24 * 7 * 30)),
         "years" => Ok(Duration::from_secs(num * 60 * 60 * 24 * 7 * 30 * 365)),
         _ => Err(anyhow::anyhow!("Unknown unit: {}", unit)),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_parse_status_time() {
-        let s = "Up 2 weeks";
-        let items = super::parse_status_time(s);
-        assert_eq!(items[0], "2");
-        assert_eq!(items[1], "weeks");
-
-        let s = "Exited (137) 9 hours ago";
-        let items = super::parse_status_time(s);
-        assert_eq!(items[0], "9");
-        assert_eq!(items[1], "hours");
     }
 }
 
@@ -243,4 +261,29 @@ pub async fn clean_exited_containers(docker: &Docker, lifecycle: u64) -> Result<
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_parse_status_time() {
+        let s = "Up 2 weeks";
+        let items = super::parse_status_time(s);
+        assert_eq!(items[0], "2");
+        assert_eq!(items[1], "weeks");
+
+        let s = "Exited (137) 9 hours ago";
+        let items = super::parse_status_time(s);
+        assert_eq!(items[0], "9");
+        assert_eq!(items[1], "hours");
+    }
+
+    use bollard::Docker;
+
+    #[tokio::test]
+    async fn test_list_images() {
+        let docker = Docker::connect_with_socket_defaults().unwrap();
+        let images = docker.list_images::<String>(None).await.unwrap();
+        println!("{:?}", images);
+    }
 }
