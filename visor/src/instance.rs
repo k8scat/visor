@@ -219,7 +219,7 @@ where
     };
 
     // 清理镜像
-    if let Err(e) = clean_images(docker, cfg.lifecycle.image_created).await {
+    if let Err(e) = clean_images(docker, cfg).await {
         warn!("Clean images failed: {}", e);
     }
 

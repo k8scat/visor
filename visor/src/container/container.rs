@@ -46,17 +46,22 @@ pub async fn remove_container(docker: &Docker, container_name: &str) -> Result<(
     Ok(docker.remove_container(container_name, None).await?)
 }
 
-pub async fn clean_images(docker: &Docker, lifecycle: u64) -> Result<()> {
+pub async fn clean_images(docker: &Docker, cfg: &Config) -> Result<()> {
     let opts = ListImagesOptions::<String> {
         all: true,
         ..Default::default()
     };
     let images = docker.list_images(Some(opts)).await?;
 
-    let t = (SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() - lifecycle * 86400) as i64;
+    let t = (SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs()
+        - cfg.lifecycle.image_created * 86400) as i64;
     for image in images.iter() {
+        if cfg.whitelist.images_map.contains_key(&image.id) {
+            info!("Ignored: image {} is in the whitelist", image.id);
+            continue;
+        }
         if image.created.gt(&t) {
-            info!("Ignore image: {}", image.id);
+            info!("Ignored: image {} was created {}", image.id, image.created);
             continue;
         }
         if let Err(e) = docker.remove_image(&image.id, None, None).await {
@@ -149,10 +154,13 @@ where
             .await?
             .into_iter()
             .filter(|c| {
-                let id = &c.id.clone().unwrap();
-                if cfg.whitelist_map.contains_key(id) {
-                    info!("Ignored: container {} is in the whitelist", id);
-                    false
+                if let Some(id) = &c.id.clone() {
+                    if cfg.whitelist.containers_map.contains_key(id) {
+                        info!("Ignored: container {} is in the whitelist", id);
+                        false
+                    } else {
+                        true
+                    }
                 } else {
                     true
                 }
