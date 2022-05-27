@@ -39,25 +39,6 @@ pub async fn list_running_containers(docker: &Docker) -> Result<Vec<ContainerSum
     Ok(list_containers_by_status(docker, vec!["running"]).await?)
 }
 
-pub async fn stop_container(docker: &Docker, container_name: &str) -> Result<()> {
-    if let Err(e) = docker.stop_container(container_name, None).await {
-        if let Error::DockerResponseServerError {
-            status_code,
-            message,
-        } = e
-        {
-            if status_code == 500 {
-                return Err(anyhow!("{}", message));
-            }
-        }
-    }
-    Ok(())
-}
-
-pub async fn remove_container(docker: &Docker, container_name: &str) -> Result<()> {
-    Ok(docker.remove_container(container_name, None).await?)
-}
-
 pub async fn clean_images(docker: &Docker, cfg: &Config) -> Result<()> {
     let opts = ListImagesOptions::<String> {
         all: true,
@@ -211,8 +192,18 @@ where
         });
         info!("Owner email: {}", instance.owner);
 
-        stop_container(docker, container_id).await?;
-        info!("Stop container: {}", container_id);
+        if let Err(e) = docker.stop_container(container_id, None).await {
+            if let Error::DockerResponseServerError {
+                status_code,
+                message,
+            } = e
+            {
+                if status_code == 500 {
+                    return Err(anyhow!("{}", message));
+                }
+            }
+        }
+        info!("Stopped container: {}", container_id);
 
         let mut user_id: Option<&String>;
         user_id = wechat.users.get(&instance.owner);
@@ -254,8 +245,16 @@ pub async fn clean_exited_containers(docker: &Docker, lifecycle: u64) -> Result<
             continue;
         }
 
-        if let Err(e) = remove_container(docker, &container_id).await {
-            warn!("Remove container {} failed: {}", container_id, e);
+        if let Err(e) = docker.remove_container(&container_id, None).await {
+            if let Error::DockerResponseServerError {
+                status_code,
+                message,
+            } = e
+            {
+                if status_code == 500 {
+                    warn!("Remove container {} failed: {}", container_id, message);
+                }
+            }
         } else {
             info!("Removed container {}", container_id);
         }
