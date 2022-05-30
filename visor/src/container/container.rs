@@ -162,13 +162,18 @@ where
                 if let Some(id) = &c.id.clone() {
                     if cfg.whitelist.containers_map.contains_key(id) {
                         info!("Ignored: container {} is in the whitelist", id);
-                        false
-                    } else {
-                        true
+                        return false;
                     }
-                } else {
-                    true
                 }
+                if let Some(names) = c.names.clone() {
+                    for name in names.iter() {
+                        if cfg.whitelist.containers_map.contains_key(name) {
+                            info!("Ignored: container {} is in the whitelist", name);
+                            return false;
+                        }
+                    }
+                }
+                true
             })
             .collect();
         if containers.is_empty() {
