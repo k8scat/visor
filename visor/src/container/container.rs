@@ -49,22 +49,29 @@ pub async fn clean_images(docker: &Docker, cfg: &Config) -> Result<()> {
     let t = (SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs()
         - cfg.lifecycle.image_created * 86400) as i64;
     for image in images.iter() {
+        // Check image tag
         let mut tag_found = false;
         for tag in image.repo_tags.iter() {
-            if cfg.whitelist.images_map.contains_key(tag) {
-                info!("Ignored: image {} is in the whitelist", tag);
-                tag_found = true;
-                break;
+            if let Some(images_map) = &cfg.whitelist.images_map {
+                if images_map.contains(tag) {
+                    info!("Ignored: image {} is in the whitelist", tag);
+                    tag_found = true;
+                    break;
+                }
             }
         }
         if tag_found {
             continue;
         }
 
-        if cfg.whitelist.images_map.contains_key(&image.id) {
-            info!("Ignored: image {} is in the whitelist", image.id);
-            continue;
+        // Check image id
+        if let Some(images_map) = &cfg.whitelist.images_map {
+            if images_map.contains(&image.id) {
+                info!("Ignored: image {} is in the whitelist", image.id);
+                continue;
+            }
         }
+        
         if image.created.gt(&t) {
             info!("Ignored: image {} was created {}", image.id, image.created);
             continue;
@@ -114,7 +121,7 @@ pub fn parse_status_time(s: &str) -> Vec<String> {
     vec![items[0].to_string(), items[1].to_string()]
 }
 
-pub fn status_into_running_time(s: &str) -> Result<Duration> {
+pub fn status_into_duration(s: &str) -> Result<Duration> {
     if s.is_empty() {
         return Err(anyhow!("Empty status"));
     }
@@ -159,17 +166,24 @@ where
             .await?
             .into_iter()
             .filter(|c| {
+                // Check container id
                 if let Some(id) = &c.id.clone() {
-                    if cfg.whitelist.containers_map.contains_key(id) {
-                        info!("Ignored: container {} is in the whitelist", id);
-                        return false;
+                    if let Some(containers_map) = &cfg.whitelist.containers_map {
+                        if containers_map.contains(id) {
+                            info!("Ignored: container {} is in the whitelist", id);
+                            return false;
+                        }
                     }
                 }
+
+                // Check container name
                 if let Some(names) = c.names.clone() {
                     for name in names.iter() {
-                        if cfg.whitelist.containers_map.contains_key(name) {
-                            info!("Ignored: container {} is in the whitelist", name);
-                            return false;
+                        if let Some(containers_map) = &cfg.whitelist.containers_map {
+                            if containers_map.contains(name) {
+                                info!("Ignored: container {} is in the whitelist", name);
+                                return false;
+                            }
                         }
                     }
                 }
@@ -183,9 +197,9 @@ where
 
         containers.sort_by(|a, b| {
             let a_time =
-                status_into_running_time(&a.status.clone().unwrap_or_default()).unwrap_or_default();
+                status_into_duration(&a.status.clone().unwrap_or_default()).unwrap_or_default();
             let b_time =
-                status_into_running_time(&b.status.clone().unwrap_or_default()).unwrap_or_default();
+                status_into_duration(&b.status.clone().unwrap_or_default()).unwrap_or_default();
             b_time.cmp(&a_time)
         });
 
@@ -225,44 +239,69 @@ where
     Ok(())
 }
 
-pub async fn clean_exited_containers(docker: &Docker, lifecycle: u64) -> Result<()> {
+pub struct ComplexContainer {
+    pub container: ContainerSummary,
+    pub exist_duration: Duration,
+}
+
+pub async fn map_existed_containers(docker: &Docker) -> Result<Option<HashMap<String, ComplexContainer>>> {
     let containers = list_exited_containers(docker).await?;
     if containers.is_empty() {
-        info!("No exited containers found");
-        return Ok(());
+        return Ok(None);
     }
 
-    let d = Duration::from_secs(86400 * lifecycle);
-    for container in containers.iter() {
-        if container.id.is_none() {
-            continue;
-        }
-        let container_id = container.id.clone().unwrap_or_default();
-
-        let t = status_into_running_time(&container.status.clone().unwrap_or_default())
-            .unwrap_or_default();
-        if t.lt(&d) {
-            info!(
-                "Ignored: container {} exited {} seconds",
-                container_id,
-                d.as_secs()
-            );
-            continue;
-        }
-
-        if let Err(e) = docker.remove_container(&container_id, None).await {
-            if let Error::DockerResponseServerError {
-                status_code,
-                message,
-            } = e
-            {
-                if status_code == 500 {
-                    warn!("Remove container {} failed: {}", container_id, message);
+    let mut containers_map: HashMap<String, ComplexContainer> = HashMap::new();
+    for container in containers {
+        if let Some(container_id) = &container.id {
+            if let Some(status) = &container.status {
+                let exist_duration = status_into_duration(status);
+                match exist_duration {
+                    Ok(exist_time) => {
+                        containers_map.insert(container_id.clone(), ComplexContainer {
+                            container,
+                            exist_duration: exist_time,
+                        });
+                    }
+                    Err(e) => {
+                        warn!("Status into duration failed: {}, err: {}", status, e);
+                    }
                 }
+            } else {
+                warn!("Container status not found: {:?}", container);
             }
         } else {
-            info!("Removed container {}", container_id);
+            warn!("Container id not found: {:?}", container)
         }
+    }
+    return Ok(Some(containers_map));
+}
+
+pub async fn clean_exited_containers(docker: &Docker, lifecycle: u64, existed_containers_map: &Option<HashMap<String, ComplexContainer>>) -> Result<()> {
+    if let Some(existed_containers_map) = existed_containers_map {
+        let d = Duration::from_secs(86400 * lifecycle);
+        for (container_id, container) in existed_containers_map {
+            if container.exist_duration.lt(&d) {
+                info!("Ignored: container {} exited {} seconds", container_id, d.as_secs());
+                continue;
+            }
+
+            if let Err(e) = docker.remove_container(&container_id, None).await {
+                if let Error::DockerResponseServerError {
+                    status_code,
+                    message,
+                } = e
+                {
+                    if status_code == 500 {
+                        warn!("Remove container {} failed: {}", container_id, message);
+                    }
+                }
+            } else {
+                info!("Removed container {}", container_id);
+            }
+        }
+    } else {
+        info!("No exited containers found");
+        return Ok(());
     }
     Ok(())
 }

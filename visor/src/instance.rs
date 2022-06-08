@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fs;
 use std::ops::Sub;
 use std::process::Command;
@@ -157,10 +157,10 @@ pub fn clean_release(lifecycle: u64) -> Result<()> {
 
 pub async fn clean_pkg(docker: &Docker, lifecycle: u64) -> Result<()> {
     let containers = list_running_containers(docker).await?;
-    let mut m = HashMap::<String, bool>::with_capacity(containers.len());
+    let mut m = HashSet::<String>::with_capacity(containers.len());
     containers.iter().for_each(|container| {
         let instance = get_instance(container).unwrap_or_default();
-        m.insert(instance.deploy_dir, true);
+        m.insert(instance.deploy_dir);
     });
     drop(containers);
 
@@ -173,8 +173,7 @@ pub async fn clean_pkg(docker: &Docker, lifecycle: u64) -> Result<()> {
                 info!("Invalid pkg: {}", f);
                 continue;
             }
-
-            if let Some(_) = m.get(f) {
+            if m.contains(f) {
                 info!("Ignore pkg: {}", f);
                 continue;
             }
@@ -198,6 +197,8 @@ pub async fn monitor<'a, T>(
 where
     T: Notifier,
 {
+    let existed_containers_map = map_existed_containers(docker).await?;
+
     // 限制 CPU 和内存使用率，并停止过载的容器
     if let Err(e) = stop_containers(docker, cfg, notifier, wechat).await {
         warn!("Stop containers failed: {}", e);
@@ -214,7 +215,7 @@ where
     };
 
     // 清理停止的容器
-    if let Err(e) = clean_exited_containers(docker, cfg.lifecycle.container).await {
+    if let Err(e) = clean_exited_containers(docker, cfg.lifecycle.container, &existed_containers_map).await {
         warn!("Clean containers failed: {}", e);
     };
 

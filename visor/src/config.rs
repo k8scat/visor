@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs};
+use std::{collections::{HashMap, HashSet}, fs};
 
 use anyhow::Result;
 use serde::Deserialize;
@@ -16,15 +16,10 @@ pub struct Config {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Whitelist {
-    #[serde(default = "Vec::new")]
-    pub containers: Vec<String>,
-    #[serde(default = "HashMap::new")]
-    pub containers_map: HashMap<String, ()>,
-
-    #[serde(default = "Vec::new")]
-    pub images: Vec<String>,
-    #[serde(default = "HashMap::new")]
-    pub images_map: HashMap<String, ()>,
+    pub containers: Option<Vec<String>>,
+    pub containers_map: Option<HashSet<String>>,
+    pub images: Option<Vec<String>>,
+    pub images_map: Option<HashSet<String>>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -48,17 +43,21 @@ impl Config {
         let s = fs::read_to_string(path)?;
         let mut config: Config = serde_yaml::from_str(&s)?;
         
-        if !config.whitelist.containers.is_empty() {
-            for id in config.whitelist.containers.iter() {
-                config.whitelist.containers_map.insert(id.clone(), ());
+        let mut containers_map = HashSet::<String>::new();
+        if let Some(containers) = &config.whitelist.containers {
+            for id in containers.iter() {
+                containers_map.insert(id.clone());
             }
         }
-        
-        if !config.whitelist.images.is_empty() {
-            for id in config.whitelist.images.iter() {
-                config.whitelist.images_map.insert(id.clone(), ());
+        config.whitelist.containers_map = Some(containers_map);
+
+        let mut images_map = HashSet::<String>::new();
+        if let Some(images) = &config.whitelist.images {
+            for id in images.iter() {
+                images_map.insert(id.clone());
             }
         }
+        config.whitelist.images_map = Some(images_map);
         Ok(config)
     }
 }
