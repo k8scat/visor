@@ -30,6 +30,14 @@ pub struct InstanceConfig {
     pub volume: String,
 }
 
+pub fn get_instance_deploy_dir(https_port: i64) -> Result<String> {
+    let cmd = format!(
+        "grep -B1 {} /data/ones/autodeploy/records.log | tail -n 2 | head -n 1",
+        https_port
+    );
+    Ok(exec(&cmd)?)
+}
+
 // Todo: 获取实例访问地址、容器数据卷
 pub fn get_instance(container: &ContainerSummary) -> Result<Instance> {
     let mut https_port: i64 = 0;
@@ -44,11 +52,7 @@ pub fn get_instance(container: &ContainerSummary) -> Result<Instance> {
         }
     }
 
-    let cmd = format!(
-        "grep -B1 {} /data/ones/autodeploy/records.log | tail -n 2 | head -n 1",
-        https_port
-    );
-    let deploy_dir = exec(&cmd)?;
+    let deploy_dir = get_instance_deploy_dir(https_port)?;
     if deploy_dir.is_empty() {
         return Err(anyhow!("Deploy dir not found"));
     }
@@ -164,6 +168,25 @@ pub async fn clean_pkg(docker: &Docker, lifecycle: u64) -> Result<()> {
     });
     drop(containers);
 
+    let existed_containers = list_exited_containers(docker).await?;
+    existed_containers.iter().for_each(|container| {
+        if let Some(ports) = &container.ports {
+            for port in ports.iter() {
+                if port.private_port.eq(&443) {
+                    let https_port = port.public_port;
+                    if let Some(https_port) = https_port {
+                        let deploy_dir = get_instance_deploy_dir(https_port).unwrap_or_default();
+                        if !deploy_dir.is_empty() {
+                            m.insert(deploy_dir);
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+    });
+    drop(existed_containers);
+
     let files = filter_files(PKG_DIR, lifecycle)?;
     if files.is_empty() {
         info!("No pkg files found");
@@ -197,26 +220,24 @@ pub async fn monitor<'a, T>(
 where
     T: Notifier,
 {
-    let existed_containers_map = map_existed_containers(docker).await?;
-
-    // 限制 CPU 和内存使用率，并停止过载的容器
-    if let Err(e) = stop_containers(docker, cfg, notifier, wechat).await {
-        warn!("Stop containers failed: {}", e);
-    }
+    // 清理停止的容器
+    if let Err(e) = clean_exited_containers(docker, cfg.lifecycle.container).await {
+        warn!("Clean containers failed: {}", e);
+    };
 
     // 清理部署目录
     if let Err(e) = clean_pkg(docker, cfg.lifecycle.pkg).await {
         warn!("Clean pkg failed: {}", e);
     };
 
+    // 限制 CPU 和内存使用率，并停止过载的容器
+    if let Err(e) = stop_containers(docker, cfg, notifier, wechat).await {
+        warn!("Stop containers failed: {}", e);
+    }
+
     // 清理部署包
     if let Err(e) = clean_release(cfg.lifecycle.release) {
         warn!("Clean release failed: {}", e);
-    };
-
-    // 清理停止的容器
-    if let Err(e) = clean_exited_containers(docker, cfg.lifecycle.container, &existed_containers_map).await {
-        warn!("Clean containers failed: {}", e);
     };
 
     // 清理镜像

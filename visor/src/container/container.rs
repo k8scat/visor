@@ -276,8 +276,10 @@ pub async fn map_existed_containers(docker: &Docker) -> Result<Option<HashMap<St
     return Ok(Some(containers_map));
 }
 
-pub async fn clean_exited_containers(docker: &Docker, lifecycle: u64, existed_containers_map: &Option<HashMap<String, ComplexContainer>>) -> Result<()> {
-    if let Some(existed_containers_map) = existed_containers_map {
+pub async fn clean_exited_containers(docker: &Docker, lifecycle: u64) -> Result<()> {
+    let existed_containers = map_existed_containers(docker).await?;
+
+    if let Some(existed_containers_map) = existed_containers {
         let d = Duration::from_secs(86400 * lifecycle);
         for (container_id, container) in existed_containers_map {
             if container.exist_duration.lt(&d) {
