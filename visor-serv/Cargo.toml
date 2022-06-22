@@ -1,6 +1,6 @@
 [package]
 name = "visor-serv"
-version = "0.3.8"
+version = "0.3.9"
 edition = "2021"
 authors = ["K8sCat <k8scat@gmail.com>"]
 license = "MIT"

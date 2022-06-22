@@ -114,9 +114,8 @@ pub async fn clean_volumes(docker: &Docker) -> Result<()> {
 }
 
 pub fn parse_status_time(s: &str) -> Vec<String> {
-    let mut s = s.to_string();
-    let re = Regex::new(r"(Exited |Up )(\([0-9]+\) )?").unwrap();
-    s = re.replace_all(&s, "").to_string();
+    let re = Regex::new(r"(Exited |Up )(\([0-9]+\) )?(About )?").unwrap();
+    let s = re.replace_all(s, "").to_string();
     let items = s.split(" ").collect::<Vec<&str>>();
     vec![items[0].to_string(), items[1].to_string()]
 }
@@ -127,9 +126,17 @@ pub fn status_into_duration(s: &str) -> Result<Duration> {
     }
 
     let items = parse_status_time(s);
-    let num = items[0].parse::<u64>().unwrap_or_default();
-    let unit = items[1].clone();
-    match unit.as_str() {
+
+    let p1 = &items[0];
+    let num;
+    if p1.eq("an") {
+        num = 1;
+    } else {
+        num = p1.parse::<u64>().unwrap_or_default();
+    }
+    
+    let unit = items[1].as_str();
+    match unit {
         "seconds" => Ok(Duration::from_secs(num)),
         "minutes" => Ok(Duration::from_secs(num * 60)),
         "hours" => Ok(Duration::from_secs(num * 60 * 60)),
