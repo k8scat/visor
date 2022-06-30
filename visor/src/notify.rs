@@ -31,14 +31,16 @@ impl Notifier for WechatNotifier {
         let markdown = Message::markdown(&m);
         group.send_message(&markdown).await?;
 
-        let mentioned_list = user_id.map(|id| vec![id.clone()]);
-        let t = &Text {
-            content: "".to_string(),
-            mentioned_list,
-            mentioned_mobile_list: None,
-        };
-        let text = Message::text(&t);
-        group.send_message(&text).await?;
+        if user_id.is_some() {
+            let mentioned_list = user_id.map(|id| vec![id.clone()]);
+            let t = &Text {
+                content: "".to_string(),
+                mentioned_list,
+                mentioned_mobile_list: None,
+            };
+            let text = Message::text(&t);
+            group.send_message(&text).await?;
+        }
         Ok(())
     }
 }
